@@ -60,6 +60,24 @@ ve<pairi> LSH(ve<vi>&S, int siglen, int bsize){
 
 }
 
-vi reordered_rows(ve<vi>&S){
+float J(ve<vi>&S, int i, int j){
+	float ans = 0.0;
+	int count=0;
 
+	for(int k=0;k<S[i].size();++k){
+		if(S[i][k]!=0 && S[j][k]!=0){
+			ans++;
+		}
+
+		if(S[i][k]!=0 || S[j][k]!=0){
+			count++;
+		}
+
+	}
+
+	return ans/count;
+}
+
+vi reordered_rows(ve<vi>&S){
+	int n = S.size();
 }
