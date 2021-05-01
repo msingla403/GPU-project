@@ -6,6 +6,7 @@ using namespace std;
 #define vi vector<int>
 #define f first
 #define s second
+#define t third
 
 class trio {
  public:
