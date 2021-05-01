@@ -4,6 +4,26 @@ using namespace std;
 #define pairi pair<int,int>
 #define ve vector
 #define vi vector<int>
+#define f first
+#define s second
+
+class trio {
+ public:
+	int first, second, third;
+
+	void print() {
+		cout << first << " " << second << " " << third << endl;
+	}
+
+	trio(){}
+
+	trio(int a, int b, int c) {
+		first = a;
+		second = b;
+		third = c;
+	}
+};
+
 
 
 class mkDSU{
@@ -55,7 +75,7 @@ class mkDSU{
 };
 
 
-ve<pairi> LSH(ve<vi>&S, int siglen, int bsize){
+ve<trio> LSH(ve<vi>&S, int siglen, int bsize){
 
 
 }
@@ -68,16 +88,15 @@ float J(ve<vi>&S, int i, int j){
 		if(S[i][k]!=0 && S[j][k]!=0){
 			ans++;
 		}
-
 		if(S[i][k]!=0 || S[j][k]!=0){
 			count++;
 		}
-
 	}
-
 	return ans/count;
 }
 
 vi reordered_rows(ve<vi>&S){
 	int n = S.size();
+
+
 }
