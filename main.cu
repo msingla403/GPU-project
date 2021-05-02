@@ -32,7 +32,7 @@ class trio {
 					return a.t<b.t;
 				return a.s<b.s;
 			}
-			return a.f < b.f;
+			return a.f > b.f;
 		}
 	};
 
