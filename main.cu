@@ -198,7 +198,7 @@ vi reordered_rows(ve<vi>&S){
 
 #define PANEL_SIZE 3
 
-__global__ void SPMM(int * panel_ptr, int * col_val, int * col_idx){
+__global__ void SPMM(int * tile_row_ptr, int * panel_ptr, int * col_val, int * col_idx){
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
@@ -210,9 +210,13 @@ __global__ void SPMM(int * panel_ptr, int * col_val, int * col_idx){
 
 	for(int i=0;i<num_tiles;++i){
 
-		int j = ptr+i;
+		int low = tile_row_ptr[ptr+i];
+		int high = tile_row_ptr[ptr+i+1];
 
-		O[row_id][thread_no] += col_val[j] * D[col_idx[j]][thread_no];
+		if(high>low){
+			int j=low;
+			O[row_id][thread_no] += col_val[j] * D[col_idx[j]][thread_no];
+		}
 	}
 }
 
@@ -229,8 +233,11 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 	__shared__ int map_tiles[num_tiles-1];
 	__shared__ int shared_D[num_tiles-1][32];
 
-	if(thread_no==0){
-		
+	if(thread_no==0 && row_id%PANEL_SIZE==0){
+		for(int i=0;i<num_tiles-1;++i)
+			map_tiles[i]=-1;
+
+
 	}
 
 	__syncthreads();
