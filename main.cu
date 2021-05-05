@@ -230,15 +230,26 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 
 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
 
-	__shared__ int map_tiles[num_tiles-1];
+	__shared__ int map_tiles[(num_tiles-1)*PANEL_SIZE];
 	__shared__ int shared_D[num_tiles-1][32];
 
-	if(thread_no==0 && row_id%PANEL_SIZE==0){
-		for(int i=0;i<num_tiles-1;++i)
-			map_tiles[i]=-1;
+	if(thread_no==0){
+		for(int i=0;i<num_tiles-1;++i){
 
+			int low = tile_row_ptr[ptr+i];
+			int high = tile_row_ptr[ptr+i+1];
+
+			if(high>low){
+				map_tiles[i]=col_idx[low];
+			}
+		}
 
 	}
+
+	__syncthreads();
+
+
+	
 
 	__syncthreads();
 
@@ -253,6 +264,10 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 		}
 	}
 }
+
+
+
+
 
 
 
