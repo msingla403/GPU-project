@@ -55,12 +55,12 @@ float J(ve<vi>&S, int i, int j){
 
 int hashFn(vi &data, int numbuckets)
 {
-	int res = vec.size();
+	int res = data.size();
 	for(auto& i:data)
 	{
 		res ^= i + 0x9e3779b9 + (res<<6) + (res>>2);
 	}
-	return res%numbuckets;
+	return abs(res)%numbuckets;
 }
 
 set<pairi> LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets){
@@ -80,22 +80,34 @@ set<pairi> LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets){
 			int smallest = INT_MAX;
 			for(int j=rowptr[i]; j<rowptr[i+1]; j++)
 			{
-				smallest = min(smallest, perm[col_idx[j]]);
+				smallest = min(smallest, perm[colidx[j]]);
 			}
 			sigs[i][k] = smallest;
 		}
 	}
 
+	// for(int i=0; i<n; i++)
+	// {
+	// 	for(int k=0; k<siglen; k++)
+	// 		cout << sigs[i][k] << " ";
+	// 	cout << endl;
+	// }
+	// cout << endl;
+	// return;
 	int num_bands = siglen/bsize;
 
 	ve <set<int>> buckets(numbuckets);
 
 	for(int i=0; i<n; i++)
 	{
-		for(int j=0; j<numbands; j++)
+		for(int j=0; j<num_bands; j++)
 		{
 			vi band(sigs[i].begin()+j*bsize, sigs[i].begin()+(j+1)*bsize);
+			// for(int k=0; k<bsize; k++)
+			// 	cout << band[k] << " ";
+			// cout << endl;
 			int idx = hashFn(band, numbuckets);
+			// cout << idx << endl;
 			buckets[idx].insert(i);
 		}
 	}
@@ -326,7 +338,20 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 
 
 
+int main()
+{
+	// int n = 6;
+	// int m = 6;
+	vi rowptr{0,2,5,7,8,11,13};
+	vi colidx{0,4,1,3,5,2,4,1,0,3,4,2,5};
+	
+	set<pairi> candidates = LSH(rowptr, colidx, 1, 1, 3);
 
+	for(auto i:candidates)
+	{
+		cout << i.f << " " << i.s << endl;
+	}
+}
 
 
 
