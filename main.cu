@@ -53,9 +53,66 @@ float J(ve<vi>&S, int i, int j){
 	return ans/count;
 }
 
-set<pairi> LSH(ve<vi>&S, int siglen, int bsize){
-	int n = S[0].size();
+int hashFn(vi &data, int numbuckets)
+{
+	int res = vec.size();
+	for(auto& i:data)
+	{
+		res ^= i + 0x9e3779b9 + (res<<6) + (res>>2);
+	}
+	return res%numbuckets;
+}
 
+set<pairi> LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets){
+	int n = rowptr.size() - 1;
+
+	ve <vi> sigs(n, vi(siglen));
+	for(int k=0; k<siglen; k++)
+	{
+		vi perm(n);
+		for(int i=0; i<n; i++)
+			perm[i] = i;
+		
+		random_shuffle(perm.begin(), perm.end());
+
+		for(int i=0; i<n; i++)
+		{
+			int smallest = INT_MAX;
+			for(int j=rowptr[i]; j<rowptr[i+1]; j++)
+			{
+				smallest = min(smallest, perm[col_idx[j]]);
+			}
+			sigs[i][k] = smallest;
+		}
+	}
+
+	int num_bands = siglen/bsize;
+
+	ve <set<int>> buckets(numbuckets);
+
+	for(int i=0; i<n; i++)
+	{
+		for(int j=0; j<numbands; j++)
+		{
+			vi band(sigs[i].begin()+j*bsize, sigs[i].begin()+(j+1)*bsize);
+			int idx = hashFn(band, numbuckets);
+			buckets[idx].insert(i);
+		}
+	}
+
+	set<pairi> result;
+	for(auto s: buckets)
+	{
+		vi temp(s.begin(), s.end());
+		for(int i=0; i<temp.size(); i++)
+		{
+			for(int j=i+1; j<temp.size(); j++)
+			{
+				result.insert(make_pair(temp[i], temp[j]));
+			}
+		}
+	}
+	return result;
 }
 
 
