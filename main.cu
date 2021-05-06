@@ -54,7 +54,7 @@ float J(ve<vi>&S, int i, int j){
 }
 
 set<pairi> LSH(ve<vi>&S, int siglen, int bsize){
-
+	int n = S[0].size();
 
 }
 
