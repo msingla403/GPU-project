@@ -397,7 +397,7 @@ int main()
 	vi rowptr{0,2,5,7,8,11,13};
 	vi colidx{0,4,1,3,5,2,4,1,0,3,4,2,5};
 	
-	set<pairi> candidates = LSH(rowptr, colidx, 1, 1, 3);
+	set<pairi> candidates = LSH(rowptr, colidx, 6, 2, 6);
 
 	for(auto i:candidates)
 	{
