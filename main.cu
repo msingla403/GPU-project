@@ -288,8 +288,8 @@ int main(int argc, char** argv)
 	
 
 	// // Reorder CSR so that dense elements are before the sparse ones
-	int panel_ptr[num_panels+1];
-
+	vi panel_ptr(num_panels+1, 0);
+		vi tile_row_ptr;
 	for(int panel_id=0; panel_id<num_panels; ++panel_id)
 	{
 		set <int> densecols;
@@ -298,7 +298,8 @@ int main(int argc, char** argv)
 			if(isdense[panel_id*nc + j])
 				densecols.insert(j);
 		}
-		panel_ptr[panel_id+1] = densecols.size();
+		panel_ptr[panel_id+1] = densecols.size()+1; // one sparse panel
+
 		for(int i = panel_id*PANEL_SIZE; i<(panel_id+1)*PANEL_SIZE; ++i)
 		{
 			if(i >= nr)
@@ -330,6 +331,7 @@ int main(int argc, char** argv)
 		}
 		// densecols.clear();
 	}
+
 	for(int i=0; i<num_panels; i++)
 		panel_ptr[i+1] += panel_ptr[i];
 
@@ -341,9 +343,9 @@ int main(int argc, char** argv)
 	// 	cout << col_idx[i] << " ";
 	// cout << endl;
 
-	
-
-
+	// for(int i=0; i<= num_panels; i++)
+	// 	cout << panel_ptr[i] << " ";
+	// cout << endl;
 
 	// int n = 6;
 	// int m = 6;
