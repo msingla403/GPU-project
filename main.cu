@@ -163,31 +163,31 @@ class trio {
 			return a.f > b.f;
 		}
 	};
-
 };
 
-float J(ve<vi>&S, int i, int j){
+float J(vi &rowptr, vi &colidx, int i, int j){
 	float ans = 0.0;
 	int count=0;
 
-	for(int k=0;k<S[i].size();++k){
-		if(S[i][k]!=0 && S[j][k]!=0){
+	set<int>s;
+
+	for(int k=rowptr[i];k<rowptr[i+1];++k){
+		s.insert(col_idx[k]);
+		count++;
+	}
+
+	for(int k=rowptr[j];k<rowptr[j+1];++k){
+		if(s.find(col_idx[k])!=s.end()){
 			ans++;
 		}
-		if(S[i][k]!=0 || S[j][k]!=0){
+		else{
 			count++;
 		}
 	}
+
+
 	return ans/count;
 }
-
-set<pairi> LSH(ve<vi>&S, int siglen, int bsize){
-
-
-}
-
-
-
 
 class mkDSU{
  public:
@@ -220,20 +220,17 @@ class mkDSU{
 		return a;
 	}
 
-	void union_(set<pairi>& candidate_pairs, ve<vi>& S){
+	void union_(set<pairi>& candidate_pairs, vi &rowptr, vi &colidx){
 
 		set<trio,trio::compare()> sim_queue;
 
 		for(auto it:candidate_pairs)
-			sim_queue.insert({J(S,it.f,it.s),it.f,it.s});
+			sim_queue.insert({J(rowptr,colidx,it.f,it.s),it.f,it.s});
 
 		while(sim_queue.size() && nclusters>0){
 			auto it = sim_queue.begin();
 			trio temp =  *it;
 			sim_queue.erase(it);
-
-			
-			
 
 			if(i==id[i] && j==id[j]){
 				if(deleted[i] || deleted[j])
@@ -249,7 +246,6 @@ class mkDSU{
 						deleted[j]=true;
 						nclusters--;
 					}
-
 				}
 				else{
 					id[j] = i;
@@ -261,12 +257,8 @@ class mkDSU{
 						deleted[i] = true;
 						nclusters--;
 					}
-
 				}
-
 			}
-
-
 			else{ 
 
 				int c1 = find(temp.s);
@@ -280,9 +272,7 @@ class mkDSU{
 					candidate_pairs.insert({min(c1,c2),max(c1,c2)});
 				}
 			}
-
 		}
-		
 	}
 
 	vi order_clusters(){
@@ -308,29 +298,19 @@ class mkDSU{
 
 
 
-vi reordered_rows(ve<vi>&S){
-	int n = S.size();
+vi reordered_rows(vi &rowptr, vi &colidx){
+	
 
-	set<pairi> candidate_pairs = LSH(S,5,5);
+	set<pairi> candidate_pairs = LSH(rowptr,colidx,5,5,5);
 
+	mkDSU dsu(n,10);
 
-	mkDSU dsu(n);
-
-	dsu.union_(candidate_pairs);
+	dsu.union_(candidate_pairs,rowptr,colidx);
 
 	vi ans = dsu.order_clusters();
 
 	return ans;
 }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -375,10 +355,6 @@ __global__ void SPMM(int *tile_row_ptr, int *panel_ptr, int *col_idx, int *col_v
 			int temp = D[col_idx[j] * 32 + thread_no];
 			O[global_row * 32 + thread_no] += col_val[j] * temp;
 		}
-		// if(high>low){
-		// 	int j=low;
-		// 	O[row_id][thread_no] += col_val[j] * D[col_idx[j]][thread_no];
-		// }
 	}
 }
 
@@ -725,6 +701,29 @@ int main(int argc, char **argv) {
 		rows[i] = r;
 		cols[i] = c;
 	}
+
+	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
+
+	vi temp_row_ptr(nr + 1, 0);
+	vi temp_col_idx(ne, 0);
+
+	for (int i = 0; i < ne; i++) {
+		// cout << rows[i] << " " << cols[i] << endl;
+		temp_row_ptr[rows[i]]++;
+		temp_col_idx[i] = cols[i] - 1;
+	}
+
+	for (int i = 0; i < nr; i++)
+		temp_row_ptr[i + 1] += temp_row_ptr[i];
+
+
+	vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
+
+
+	for(int i=0;i<ne;++i){
+		rows[i] = order_rows[rows[i]-1]; 
+	}
+
 
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
