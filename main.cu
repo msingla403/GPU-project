@@ -1,4 +1,8 @@
-#include<bits/stdc++.h>
+#include<iostream>
+#include<stdlib.h>
+#include<set>
+#include<vector>
+#include<algorithm>
 #include<cuda.h>
 #include <thrust/sort.h>
 using namespace std;
@@ -11,8 +15,8 @@ using namespace std;
 #define t third
 
 
-#define PANEL_SIZE 14
-#define DENSE_THRESHOLD 5
+#define PANEL_SIZE 10
+#define DENSE_THRESHOLD 4
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -333,6 +337,135 @@ __global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, i
 
 }
 
+void run_MM(vi &row_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
+{
+		// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
+
+		int *drow_ptr;
+		int *dcol_idx;
+		int *dcol_val;
+		cudaMalloc(&drow_ptr, (nr+1)*sizeof(int));
+		cudaMalloc(&dcol_idx, ne*sizeof(int));
+		cudaMalloc(&dcol_val, ne*sizeof(int));
+	
+		cudaMemcpy(drow_ptr, &row_ptr[0], (nr+1)*sizeof(int), cudaMemcpyHostToDevice);
+		cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+		cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+
+		int *DM;
+		cudaMalloc(&DM, nc*32*sizeof(int));
+		cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
+	
+		int* O;
+		cudaMalloc(&O, nr*32*sizeof(int));
+		MM <<< (nr*32+1023)/1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
+		
+		vi host_O(nr*32);
+		cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	
+		cudaFree(drow_ptr);
+		cudaFree(dcol_idx);
+		cudaFree(dcol_val);
+		cudaFree(O);
+
+		// for(int i=0; i<nr; i++)
+		// {
+		// 	for(int j=0; j<32; j++)
+		// 		cout << host_O[32*i + j] << " ";
+		// 	cout << endl;
+		// }
+		// cout << endl;
+}
+
+void run_SPMM(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
+{
+	// trying SPMM with tiling (no reordering)
+	int num_panels = nr/PANEL_SIZE;
+
+	int* dtile_row_ptr;
+	int* dpanel_ptr;
+	int *dcol_idx;
+	int *dcol_val;
+	cudaMalloc(&dtile_row_ptr, tile_row_ptr.size() * sizeof(int));
+	cudaMalloc(&dpanel_ptr, panel_ptr.size() * sizeof(int));
+	cudaMalloc(&dcol_idx, ne*sizeof(int));
+	cudaMalloc(&dcol_val, ne*sizeof(int));
+
+	cudaMemcpy(dtile_row_ptr, &tile_row_ptr[0], tile_row_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dpanel_ptr, &panel_ptr[0], panel_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	int *DM;
+	cudaMalloc(&DM, nc*32*sizeof(int));
+	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
+
+	int* O;
+	cudaMalloc(&O, nr*32*sizeof(int));
+	cudaMemset(O, 0, nr*32*sizeof(int));
+	SPMM<<< num_panels, 32*PANEL_SIZE>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	
+	vi host_O(nr*32);
+	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	
+	cudaFree(dtile_row_ptr);
+	cudaFree(dpanel_ptr);
+	cudaFree(dcol_idx);
+	cudaFree(dcol_val);
+	cudaFree(O);
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=0; j<32; j++)
+	// 		cout << host_O[32*i + j] << " ";
+	// 	cout << endl;
+	// }
+	// cout << endl;
+}
+
+void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
+{
+	// call ASPT kernels
+	int num_panels = nr/PANEL_SIZE;
+
+	int* dtile_row_ptr;
+	int* dpanel_ptr;
+	int *dcol_idx;
+	int *dcol_val;
+	cudaMalloc(&dtile_row_ptr, tile_row_ptr.size() * sizeof(int));
+	cudaMalloc(&dpanel_ptr, panel_ptr.size() * sizeof(int));
+	cudaMalloc(&dcol_idx, ne*sizeof(int));
+	cudaMalloc(&dcol_val, ne*sizeof(int));
+
+	cudaMemcpy(dtile_row_ptr, &tile_row_ptr[0], tile_row_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dpanel_ptr, &panel_ptr[0], panel_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+
+	int *DM;
+	cudaMalloc(&DM, nc*32*sizeof(int));
+	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
+
+	int* O;
+	cudaMalloc(&O, nr*32*sizeof(int));
+	cudaMemset(O, 0, nr*32*sizeof(int));
+	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+
+	vi host_O(nr*32);
+	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+
+	cudaFree(dtile_row_ptr);
+	cudaFree(dpanel_ptr);
+	cudaFree(dcol_idx);
+	cudaFree(dcol_val);
+	cudaFree(O);
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=0; j<32; j++)
+	// 		cout << host_O[32*i + j] << " ";
+	// 	cout << endl;
+	// }
+}
 
 int main(int argc, char** argv)
 {
@@ -356,7 +489,6 @@ int main(int argc, char** argv)
 		rows[i] = r;
 		cols[i] = c; 
 	}
-	
 	
 	// // create column wise CSR
 	thrust::sort_by_key(cols.begin(), cols.begin()+ne, rows.begin());
@@ -543,82 +675,10 @@ int main(int argc, char** argv)
 	cudaMalloc(&DM, nc*32*sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 	
-	// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
 
-	int *drow_ptr;
-	int *dcol_idx;
-	int *dcol_val;
-	cudaMalloc(&drow_ptr, (nr+1)*sizeof(int));
-	cudaMalloc(&dcol_idx, ne*sizeof(int));
-	cudaMalloc(&dcol_val, ne*sizeof(int));
-
-	cudaMemcpy(drow_ptr, &row_ptr[0], (nr+1)*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
-
-	int* O;
-	cudaMalloc(&O, nr*32*sizeof(int));
-	MM<<< (nr*32+1023)/1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
+	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	
-	int host_O[nr*32];
-	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
-
-	cudaFree(drow_ptr);
-	// for(int i=0; i<nr; i++)
-	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
-	// }
-	// cout << endl;
-
-
-
-	// trying SPMM with tiling (no reordering)
-
-	int* dtile_row_ptr;
-	int* dpanel_ptr;
-	cudaMalloc(&dtile_row_ptr, tile_row_ptr.size() * sizeof(int));
-	cudaMalloc(&dpanel_ptr, panel_ptr.size() * sizeof(int));
-	cudaMemcpy(dtile_row_ptr, &tile_row_ptr[0], tile_row_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dpanel_ptr, &panel_ptr[0], panel_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
-
-	cudaMemset(O, 0, nr*32*sizeof(int));
-	SPMM<<< num_panels, 32*PANEL_SIZE>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
-	
-	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
-	// for(int i=0; i<nr; i++)
-	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
-	// }
-	// cout << endl;
-
-	// call ASPT kernels
-	cudaMemset(O, 0, nr*32*sizeof(int));
-	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
-	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
-
-	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
-	// for(int i=0; i<nr; i++)
-	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
-	// }
-
-	// int n = 6;
-	// int m = 6;
-	// vi rowptr{0,2,5,7,8,11,13};
-	// vi colidx{0,4,1,3,5,2,4,1,0,3,4,2,5};
-	
-	// set<pairi> candidates = LSH(rowptr, colidx, 6, 2, 6);
-
-	// for(auto i:candidates)
-	// {
-	// 	cout << i.f << " " << i.s << endl;
-	// }
 }
 
