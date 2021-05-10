@@ -16,8 +16,8 @@ using namespace std;
 #define t third
 
 
-#define PANEL_SIZE 3
-#define DENSE_THRESHOLD 2
+#define PANEL_SIZE 21
+#define DENSE_THRESHOLD 6
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -254,7 +254,7 @@ ve <vi> find_dense_CPU(vi &col_ptr, vi& row_idx, int nr, int nc)
 
 __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* col_map, int *D, int* O){
 
-	extern __shared__ int shared_D[];
+	__shared__ int shared_D[8192];
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
@@ -272,7 +272,7 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 		int high = tile_row_ptr[ptr+i+1];
 
 		if(high>low){
-			shared_D[low*32+thread_no] = D[col_idx[low]*32+thread_no];
+			shared_D[col_map[low]*32+thread_no] = D[col_idx[low]*32+thread_no];
 		}
 
 	}
@@ -295,19 +295,19 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 	}
 
 
-	int i = num_tiles-1;
+	// int i = num_tiles-1;
 
-	int low = tile_row_ptr[i+ptr];
-	int high = tile_row_ptr[i+ptr+1];
+	// int low = tile_row_ptr[i+ptr];
+	// int high = tile_row_ptr[i+ptr+1];
 
 
 
-	for(int i=low;i<high;++i){
+	// for(int i=low;i<high;++i){
 
-		int j= col_idx[i];
+	// 	int j= col_idx[i];
 
-		O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
-	}
+	// 	O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
+	// }
 
 }
 
@@ -445,8 +445,8 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMalloc(&O, nr*32*sizeof(int));
 	cudaMemset(O, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
-	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
+	// ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
 	vi host_O(nr*32);
 	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
@@ -579,14 +579,14 @@ int main(int argc, char** argv)
 	int num_panels = nr/PANEL_SIZE;
 
 	ve <vi> dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
-	for(int i=0; i<num_panels; i++)
-	{
-		for(int j=0; j<dense[i].size(); j++)
-		{
-			cout << dense[i][j] << " ";
-		}
-		cout << endl;
-	}
+	// for(int i=0; i<num_panels; i++)
+	// {
+	// 	for(int j=0; j<dense[i].size(); j++)
+	// 	{
+	// 		cout << dense[i][j] << " ";
+	// 	}
+	// 	cout << endl;
+	// }
 	thrust::sort_by_key(rows.begin(), rows.begin()+ne, cols.begin());
 	cout << "sorted row wise" << endl;
 	
@@ -661,7 +661,7 @@ int main(int argc, char** argv)
 			for(auto mapel:densecols)
 			{
 				auto el = mapel.f;
-				cout << el << ' ';
+				// cout << el << ' ';
 				found = 0;
 				for(int k = row_ptr[i]; k<row_ptr[i+1]; ++k)
 				{
@@ -681,7 +681,7 @@ int main(int argc, char** argv)
 				
 				// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
 			}
-			cout << endl;
+			// cout << endl;
 			tile_row_ptr.push_back(row_ptr[i+1] - row_ptr[i] - counter);
 
 		}
@@ -695,30 +695,30 @@ int main(int argc, char** argv)
 	for(int i=1; i<tile_row_ptr.size(); i++)
 		tile_row_ptr[i] += tile_row_ptr[i-1];
 
-	cout << "row_ptr" << endl;
-	for(int i=0; i<=nr; i++)
-		cout << row_ptr[i] << " ";
-	cout <<endl;
+	// cout << "row_ptr" << endl;
+	// for(int i=0; i<=nr; i++)
+	// 	cout << row_ptr[i] << " ";
+	// cout <<endl;
 	
-	cout << "col_idx" << endl;
-	for(int i=0; i<ne; i++)
-		cout << col_idx[i] << " ";
-	cout << endl;
+	// cout << "col_idx" << endl;
+	// for(int i=0; i<ne; i++)
+	// 	cout << col_idx[i] << " ";
+	// cout << endl;
 
-	cout << "panel_ptr" << endl;
-	for(int i=0; i<= num_panels; i++)
-		cout << panel_ptr[i] << " ";
-	cout << endl;
-	cout << "tile_row_ptr" << endl;
-	for(int i=0; i<tile_row_ptr.size(); i++)
-		cout << tile_row_ptr[i] << " ";
-	cout << endl;
-	cout << endl;
+	// cout << "panel_ptr" << endl;
+	// for(int i=0; i<= num_panels; i++)
+	// 	cout << panel_ptr[i] << " ";
+	// cout << endl;
+	// cout << "tile_row_ptr" << endl;
+	// for(int i=0; i<tile_row_ptr.size(); i++)
+	// 	cout << tile_row_ptr[i] << " ";
+	// cout << endl;
+	// cout << endl;
 	
-	cout << "dense col mapping" << endl;
-	for(int i=0; i<col_map.size(); i++)
-		cout << col_map[i] << " ";
-	cout << endl;
+	// cout << "dense col mapping" << endl;
+	// for(int i=0; i<col_map.size(); i++)
+	// 	cout << col_map[i] << " ";
+	// cout << endl;
 
 
 	vi host_DM(nc*32, 1);
@@ -728,8 +728,8 @@ int main(int argc, char** argv)
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 	
 
-	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 	
 }
