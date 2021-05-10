@@ -17,7 +17,7 @@ using namespace std;
 
 
 #define PANEL_SIZE 21
-#define DENSE_THRESHOLD 6
+#define DENSE_THRESHOLD 5
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -430,35 +430,41 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMalloc(&DM, nc*32*sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 
-	int* O;
-	cudaMalloc(&O, nr*32*sizeof(int));
-	cudaMemset(O, 0, nr*32*sizeof(int));
+	int* O1;
+	cudaMalloc(&O1, nr*32*sizeof(int));
+	cudaMemset(O1, 0, nr*32*sizeof(int));
+	int* O2;
+	cudaMalloc(&O2, nr*32*sizeof(int));
+	cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaMalloc(&O2, nr*32*sizeof(int));
 	// cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 
-	// cudaStream_t s1, s2;
-	// cudaStreamCreate(&s1);
-	// cudaStreamCreate(&s2);
+	cudaStream_t s1, s2;
+	cudaStreamCreate(&s1);
+	cudaStreamCreate(&s2);
 
-	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32, 0, s1>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32, 0, s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
 
-	vi host_O(nr*32);
-	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	vi host_O1(nr*32);
+	vi host_O2(nr*32);
+	cudaMemcpy(&host_O1[0], O1, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&host_O2[0], O2, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
 
 	cudaFree(dtile_row_ptr);
 	cudaFree(dpanel_ptr);
 	cudaFree(dcol_idx);
 	cudaFree(dcol_val);
 	cudaFree(dcol_map);
-	cudaFree(O);
-	// for(int i=0; i<nr; i++)
-	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
-	// }
+	cudaFree(O1);
+	cudaFree(O2);
+	for(int i=0; i<nr; i++)
+	{
+		for(int j=0; j<32; j++)
+			cout << host_O1[32*i + j] + host_O2[32*i+j] << " ";
+		cout << endl;
+	}
 }
 
 void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, int nr, int nc, int ne)
