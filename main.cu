@@ -220,6 +220,123 @@ __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int
 
 }
 
+__global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
+
+	int row_panel_id = blockIdx.x;
+	int row_id = threadIdx.x/32;
+	int thread_no = threadIdx.x%32;
+
+	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+
+	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
+
+	__shared__ int map_tiles[(num_tiles-1)*PANEL_SIZE];
+	__shared__ int mapping[num_tiles-1];
+	__shared__ int shared_D[num_tiles-1][32];
+
+	if(thread_no==0){
+		for(int i=0;i<num_tiles-1;++i){
+
+			int low = tile_row_ptr[ptr+i];
+			int high = tile_row_ptr[ptr+i+1];
+
+			if(high>low){
+				map_tiles[i+row_id*(num_tiles-1)]=col_idx[low];
+			}
+			else{
+				map_tiles[i+row_id*(num_tiles-1)]=INT_MAX;
+			}
+		}
+
+	}
+
+	__syncthreads();
+
+	if(row_id%PANEL_SIZE==0){
+
+		if(threadIdx==0){
+
+			thrust::sort(thrust::seq, map_tiles, map_tiles + (num_tiles-1)*PANEL_SIZE);
+			
+			int i=0,j=0,k=0;
+
+			while(i<(num_tiles-1)*PANEL_SIZE && map_tiles[i]!=INT_MAX){
+				mapping[k] = map_tiles[i];
+				k++;
+
+				while(j<(num_tiles-1)*PANEL_SIZE && map_tiles[j]!=INT_MAX && map_tiles[j]==map_tiles[i]){
+					j++;
+				}
+
+				i=j;
+			}
+
+		}
+
+		for(int i=0;i<num_tiles-1;++i){
+			int ind = mapping[i];
+			shared_D[i][thread_no] = D[ind][thread_no];
+		}
+	}
+
+	__syncthreads();
+
+	for(int i=0;i<num_tiles-1;++i){
+
+		int low = tile_row_ptr[i+ptr];
+		int high = tile_row_ptr[i+ptr+1];
+
+
+		if(high>low){
+
+			int ind = col_idx[low];
+
+			for(int j=0;j<num_tiles-1;++j){
+				if(mapping[j]==ind){
+					ind = j;
+					break;
+				}
+			}
+
+			O[row_id][thread_no] += col_val[j] * shared_D[j][thread_no];
+		}
+	}
+}
+
+__global__ void ASPT_sparse(int * panel_ptr, int * col_val, int * col_idx ){
+	int row_panel_id = blockIdx.x;
+	int row_id = threadIdx.x/32;
+	int thread_no = threadIdx.x%32;
+
+	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+
+	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
+
+
+
+
+	int low = tile_row_ptr[i+ptr];
+	int high = tile_row_ptr[i+ptr+1];
+
+
+	for(int i=low;i<high;++i){
+
+		int ind = col_idx[i];
+
+		for(int j=0;j<num_tiles-1;++j){
+			if(mapping[j]==ind){
+				ind = j;
+				break;
+			}
+		}
+
+		O[row_id][thread_no] += col_val[j] * D[j][thread_no];
+	}
+
+
+}
+
+
 int main(int argc, char** argv)
 {
 	if(argc < 2)
@@ -466,6 +583,7 @@ int main(int argc, char** argv)
 		cout << endl;
 	}
 
+	
 	
 
 	// int n = 6;
