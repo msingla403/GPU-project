@@ -430,11 +430,11 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMalloc(&DM, nc*32*sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 
-	int* O1,*O2;
-	cudaMalloc(&O1, nr*32*sizeof(int));
-	cudaMemset(O1, 0, nr*32*sizeof(int));
-	cudaMalloc(&O2, nr*32*sizeof(int));
-	cudaMemset(O2, 0, nr*32*sizeof(int));
+	int* O;
+	cudaMalloc(&O, nr*32*sizeof(int));
+	cudaMemset(O, 0, nr*32*sizeof(int));
+	// cudaMalloc(&O2, nr*32*sizeof(int));
+	// cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 
 	// cudaStream_t s1, s2;
