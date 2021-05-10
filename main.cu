@@ -220,7 +220,9 @@ __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int
 
 }
 
-__global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
+__global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int *D, int* O){
+
+	extern __shared__ int s[];
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
@@ -230,9 +232,13 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 
 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
 
-	__shared__ int map_tiles[(num_tiles-1)*PANEL_SIZE];
-	__shared__ int mapping[num_tiles-1];
-	__shared__ int shared_D[num_tiles-1][32];
+	int * map_tiles = s;
+	int * mapping = s + (num_tiles-1)*PANEL_SIZE;
+	int * shared_D = mapping + (num_tiles-1);
+
+	// __shared__ int map_tiles[(num_tiles-1)*PANEL_SIZE];
+	// __shared__ int mapping[num_tiles-1];
+	// __shared__ int shared_D[num_tiles-1][32];
 
 	if(thread_no==0){
 		for(int i=0;i<num_tiles-1;++i){
@@ -247,14 +253,13 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 				map_tiles[i+row_id*(num_tiles-1)]=INT_MAX;
 			}
 		}
-
 	}
 
 	__syncthreads();
 
 	if(row_id%PANEL_SIZE==0){
 
-		if(threadIdx==0){
+		if(threadIdx.x==0){
 
 			thrust::sort(thrust::seq, map_tiles, map_tiles + (num_tiles-1)*PANEL_SIZE);
 			
@@ -275,7 +280,7 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 
 		for(int i=0;i<num_tiles-1;++i){
 			int ind = mapping[i];
-			shared_D[i][thread_no] = D[ind][thread_no];
+			shared_D[i*32 + thread_no] = D[ind*32 + thread_no];
 		}
 	}
 
@@ -303,7 +308,7 @@ __global__ void ASPT_dense(int * panel_ptr, int * col_val, int * col_idx ){
 	}
 }
 
-__global__ void ASPT_sparse(int * panel_ptr, int * col_val, int * col_idx ){
+__global__ void ASPT_sparse(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* D, int* O){
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
 	int thread_no = threadIdx.x%32;
@@ -329,11 +334,8 @@ __global__ void ASPT_sparse(int * panel_ptr, int * col_val, int * col_idx ){
 				break;
 			}
 		}
-
 		O[row_id][thread_no] += col_val[j] * D[j][thread_no];
 	}
-
-
 }
 
 
@@ -582,9 +584,21 @@ int main(int argc, char** argv)
 			cout << host_O[32*i + j] << " ";
 		cout << endl;
 	}
+	cout << endl;
 
-	
-	
+	// call ASPT kernels
+	cudaMemset(O, 0, nr*32*sizeof(int));
+	cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+
+	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	for(int i=0; i<nr; i++)
+	{
+		for(int j=0; j<32; j++)
+			cout << host_O[32*i + j] << " ";
+		cout << endl;
+	}
 
 	// int n = 6;
 	// int m = 6;
