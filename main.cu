@@ -441,8 +441,8 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	// cudaStreamCreate(&s1);
 	// cudaStreamCreate(&s2);
 
-	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
 	vi host_O(nr*32);
 	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
