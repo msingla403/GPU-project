@@ -144,30 +144,54 @@ set<pairi> LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets){
 	return result;
 }
 
+__global__ void MM(int* row_ptr, int* col_idx, int* col_val, int* dm, int* O, int N, int M, int K)
+{
+	int idx = threadIdx.x + blockDim.x*blockIdx.x;
+	
+	if(idx < N*K)
+	{
+		// i'th row, j'th column of output
+		int i = idx/K;
+		int j = idx%K;
+		int res = 0;
+		for(int k=row_ptr[i]; k<row_ptr[i+1]; ++k)
+		{
+			res += col_val[k] * (dm[col_idx[k]*M + j]);
+		}
+		O[i*K+j] = res;
+		// printf("%d %d %d\n", i, j, res);
+	}
+}
+
 #define PANEL_SIZE 3
 #define DENSE_THRESHOLD 2
+__global__ void SPMM(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* D, int* O){
 
-// __global__ void SPMM(int * tile_row_ptr, int * panel_ptr, int * col_val, int * col_idx){
+	int row_panel_id = blockIdx.x;
+	int row_id = threadIdx.x/32;
+	int thread_no = threadIdx.x%32;
+	
+	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+	int global_row = PANEL_SIZE*row_panel_id + row_id;
+	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
+	// printf("%d %d %d %d %d\n", row_panel_id, row_id, thread_no, num_tiles, ptr);
 
-// 	int row_panel_id = blockIdx.x;
-// 	int row_id = threadIdx.x/32;
-// 	int thread_no = threadIdx.x%32;
+	for(int i=0;i<num_tiles;++i){
 
-// 	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+		int low = tile_row_ptr[ptr+i];
+		int high = tile_row_ptr[ptr+i+1];
 
-// 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
-
-// 	for(int i=0;i<num_tiles;++i){
-
-// 		int low = tile_row_ptr[ptr+i];
-// 		int high = tile_row_ptr[ptr+i+1];
-
-// 		if(high>low){
-// 			int j=low;
-// 			O[row_id][thread_no] += col_val[j] * D[col_idx[j]][thread_no];
-// 		}
-// 	}
-// }
+		for(int j = low; j<high; j++)
+		{
+			int temp = D[col_idx[j]*32 + thread_no];
+			O[global_row*32 + thread_no] += col_val[j] * temp;
+		}
+		// if(high>low){
+		// 	int j=low;
+		// 	O[row_id][thread_no] += col_val[j] * D[col_idx[j]][thread_no];
+		// }
+	}
+}
 
 __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int nc)
 {	
@@ -198,6 +222,8 @@ __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int
 
 int main(int argc, char** argv)
 {
+	if(argc < 2)
+		return 1;
 	char* inputfilename = argv[1];
 	FILE *fp;
 	fp = fopen(inputfilename, "r");
@@ -244,8 +270,8 @@ int main(int argc, char** argv)
 	thrust::sort_by_key(rows, rows+ne, cols);
 	vi row_ptr(nr+1, 0);
 	vi col_idx(ne, 0);
-	
-	// int col_val[ne];
+	vi col_val(ne, 1);
+
 	for(int i=0; i<ne; i++)
 	{
 		// cout << rows[i] << " " << cols[i] << endl;
@@ -255,7 +281,6 @@ int main(int argc, char** argv)
 	
 	for(int i=0; i<nr; i++)
 		row_ptr[i+1] += row_ptr[i];
-
 
 	// find dense tiles now
 	int num_panels = nr/PANEL_SIZE;
@@ -286,10 +311,9 @@ int main(int argc, char** argv)
 	// 	cout << endl;
 	// }
 	
-
 	// // Reorder CSR so that dense elements are before the sparse ones
 	vi panel_ptr(num_panels+1, 0);
-		vi tile_row_ptr;
+	vi tile_row_ptr(1, 0);
 	for(int panel_id=0; panel_id<num_panels; ++panel_id)
 	{
 		set <int> densecols;
@@ -305,14 +329,14 @@ int main(int argc, char** argv)
 			if(i >= nr)
 				break;
 
-			vi temp1;
-			vi temp2;
+			ve <pairi> temp1;
+			ve <pairi> temp2;
 			for(int k=row_ptr[i]; k<row_ptr[i+1]; ++k)
 			{
 				if(densecols.find( col_idx[k] ) == densecols.end() )
-					temp2.push_back(col_idx[k]);
+					temp2.push_back( make_pair(col_idx[k], col_val[k]));
 				else
-					temp1.push_back(col_idx[k]);
+					temp1.push_back( make_pair(col_idx[k], col_val[k]));
 			}
 
 			int counter = 0;
@@ -320,20 +344,56 @@ int main(int argc, char** argv)
 			{
 				if(counter < temp1.size())
 				{
-					col_idx[k] = temp1[counter];
+					col_idx[k] = temp1[counter].f;
+					col_val[k] = temp1[counter].s;
 				}
 				else
 				{
-					col_idx[k] = temp2[counter-temp1.size()];
+					col_idx[k] = temp2[counter - temp1.size()].f;
+					col_val[k] = temp2[counter - temp1.size()].s;
 				}
 				++counter;
 			}
+			
+			counter = 0;
+			int found = 0;
+			for(auto el:densecols)
+			{
+				found = 0;
+				for(int k = row_ptr[i]; k<row_ptr[i+1]; ++k)
+				{
+					if(el==col_idx[k])
+					{
+						found = 1;
+						counter++;
+						break;
+					}
+					else if(el < col_idx[k])
+					{
+						break;
+					}
+				}
+				
+				tile_row_ptr.push_back(found);
+				
+				// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
+			}
+			tile_row_ptr.push_back(row_ptr[i+1] - row_ptr[i] - counter);
+
 		}
+
 		// densecols.clear();
 	}
 
+	// for(int i=0; i<tile_row_ptr.size(); i++)
+	// 	cout << tile_row_ptr[i] << " ";
+	// cout << endl;
+
 	for(int i=0; i<num_panels; i++)
 		panel_ptr[i+1] += panel_ptr[i];
+
+	for(int i=1; i<tile_row_ptr.size(); i++)
+		tile_row_ptr[i] += tile_row_ptr[i-1];
 
 	// for(int i=0; i<=nr; i++)
 	// 	cout << row_ptr[i] << " ";
@@ -343,9 +403,68 @@ int main(int argc, char** argv)
 	// 	cout << col_idx[i] << " ";
 	// cout << endl;
 
-	// for(int i=0; i<= num_panels; i++)
-	// 	cout << panel_ptr[i] << " ";
-	// cout << endl;
+	for(int i=0; i<= num_panels; i++)
+		cout << panel_ptr[i] << " ";
+	cout << endl;
+	for(int i=0; i<tile_row_ptr.size(); i++)
+		cout << tile_row_ptr[i] << " ";
+	cout << endl;
+	cout << endl;
+
+	vi host_DM(nc*32, 1);
+
+	int *DM;
+	cudaMalloc(&DM, nc*32*sizeof(int));
+	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
+	
+	// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
+
+	int *drow_ptr;
+	int *dcol_idx;
+	int *dcol_val;
+	cudaMalloc(&drow_ptr, (nr+1)*sizeof(int));
+	cudaMalloc(&dcol_idx, ne*sizeof(int));
+	cudaMalloc(&dcol_val, ne*sizeof(int));
+
+	cudaMemcpy(drow_ptr, &row_ptr[0], (nr+1)*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+
+	int* O;
+	cudaMalloc(&O, nr*32*sizeof(int));
+	MM<<< (nr*32+1023)/1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
+	
+	int host_O[nr*32];
+	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+
+	cudaFree(drow_ptr);
+	for(int i=0; i<nr; i++)
+	{
+		for(int j=0; j<32; j++)
+			cout << host_O[32*i + j] << " ";
+		cout << endl;
+	}
+	cout << endl;
+
+
+	int* dtile_row_ptr;
+	int* dpanel_ptr;
+	cudaMalloc(&dtile_row_ptr, tile_row_ptr.size() * sizeof(int));
+	cudaMalloc(&dpanel_ptr, panel_ptr.size() * sizeof(int));
+	cudaMemcpy(dtile_row_ptr, &tile_row_ptr[0], tile_row_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dpanel_ptr, &panel_ptr[0], panel_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
+
+	cudaMemset(O, 0, nr*32*sizeof(int));
+	SPMM<<< num_panels, 32*PANEL_SIZE>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	
+	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
+	for(int i=0; i<nr; i++)
+	{
+		for(int j=0; j<32; j++)
+			cout << host_O[32*i + j] << " ";
+		cout << endl;
+	}
+
 
 	// int n = 6;
 	// int m = 6;
@@ -359,6 +478,4 @@ int main(int argc, char** argv)
 	// 	cout << i.f << " " << i.s << endl;
 	// }
 }
-
-
 
