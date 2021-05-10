@@ -15,8 +15,8 @@ using namespace std;
 #define t third
 
 
-#define PANEL_SIZE 10
-#define DENSE_THRESHOLD 4
+#define PANEL_SIZE 21
+#define DENSE_THRESHOLD 5
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -262,34 +262,34 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 
 	__syncthreads();
 
-	if(row_id%PANEL_SIZE==0){
+	// if(row_id%PANEL_SIZE==0){
 
-		if(threadIdx.x==0){
+	// 	if(threadIdx.x==0){
 
-			thrust::sort(thrust::seq, map_tiles, map_tiles + (num_tiles-1)*PANEL_SIZE);
+	// 		thrust::sort(thrust::seq, map_tiles, map_tiles + (num_tiles-1)*PANEL_SIZE);
 			
-			int i=0,j=0,k=0;
+	// 		int i=0,j=0,k=0;
 
-			while(i<(num_tiles-1)*PANEL_SIZE && map_tiles[i]!=INT_MAX){
-				mapping[k] = map_tiles[i];
-				k++;
+	// 		while(i<(num_tiles-1)*PANEL_SIZE && map_tiles[i]!=INT_MAX){
+	// 			mapping[k] = map_tiles[i];
+	// 			k++;
 
-				while(j<(num_tiles-1)*PANEL_SIZE && map_tiles[j]!=INT_MAX && map_tiles[j]==map_tiles[i]){
-					j++;
-				}
+	// 			while(j<(num_tiles-1)*PANEL_SIZE && map_tiles[j]!=INT_MAX && map_tiles[j]==map_tiles[i]){
+	// 				j++;
+	// 			}
 
-				i=j;
-			}
+	// 			i=j;
+	// 		}
 
-		}
+	// 	}
 
-		for(int i=0;i<num_tiles-1;++i){
-			int ind = mapping[i];
-			shared_D[i*32 + thread_no] = D[ind*32 + thread_no];
-		}
-	}
+	// 	for(int i=0;i<num_tiles-1;++i){
+	// 		int ind = mapping[i];
+	// 		shared_D[i*32 + thread_no] = D[ind*32 + thread_no];
+	// 	}
+	// }
 
-	__syncthreads();
+	// __syncthreads();
 
 	for(int i=0;i<num_tiles-1;++i){
 
@@ -301,13 +301,13 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 
 			int ind = col_idx[low];
 
-			for(int j=0;j<num_tiles-1;++j){
-				if(mapping[j]==ind){
-					ind = j;
-					break;
-				}
-			}
-			O[global_row*32 + thread_no] += col_val[ind] * shared_D[ind*32 + thread_no];
+			// for(int j=0;j<num_tiles-1;++j){
+			// 	if(mapping[j]==ind){
+			// 		ind = j;
+			// 		break;
+			// 	}
+			// }
+			// O[global_row*32 + thread_no] += col_val[ind] * shared_D[ind*32 + thread_no];
 		}
 	}
 }
