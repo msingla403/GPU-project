@@ -437,12 +437,12 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 
-	cudaStream_t s1, s2;
-	cudaStreamCreate(&s1);
-	cudaStreamCreate(&s2);
+	// cudaStream_t s1, s2;
+	// cudaStreamCreate(&s1);
+	// cudaStreamCreate(&s2);
 
-	ASPT_dense<<< num_panels, PANEL_SIZE*32,0,s1>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32,0,s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
 
 	vi host_O(nr*32);
 	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
