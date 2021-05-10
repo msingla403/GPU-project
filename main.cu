@@ -11,6 +11,8 @@ using namespace std;
 #define t third
 
 
+#define PANEL_SIZE 14
+#define DENSE_THRESHOLD 5
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -154,17 +156,17 @@ __global__ void MM(int* row_ptr, int* col_idx, int* col_val, int* dm, int* O, in
 		int i = idx/K;
 		int j = idx%K;
 		int res = 0;
+		int temp;
 		for(int k=row_ptr[i]; k<row_ptr[i+1]; ++k)
 		{
-			res += col_val[k] * (dm[col_idx[k]*M + j]);
+			temp = dm[col_idx[k]*K + j];
+			res += col_val[k] * temp;
 		}
 		O[i*K+j] = res;
 		// printf("%d %d %d\n", i, j, res);
 	}
 }
 
-#define PANEL_SIZE 3
-#define DENSE_THRESHOLD 2
 __global__ void SPMM(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* D, int* O){
 
 	int row_panel_id = blockIdx.x;
@@ -196,28 +198,27 @@ __global__ void SPMM(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_v
 __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int nc)
 {	
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
-	if(idx < (nr/PANEL_SIZE)*nc)
+	if(idx < nc)
 	{
-		int panel_id = idx/nc;
-		int col_id = idx%nc;
-		
-		int counter = 0;
-		for(int i=col_ptr[col_id]; i<col_ptr[col_id+1]; i++)
+		int panel_id;
+		for(int i=col_ptr[idx]; i<col_ptr[idx+1]; ++i)
 		{
-			if(row_idx[i] >= panel_id*PANEL_SIZE && row_idx[i] < (panel_id+1)*PANEL_SIZE)
-			{	
-				// printf("%d %d %d\n", idx, col_id, row_idx[i]);
-				counter++;
-			}
+			panel_id = row_idx[i]/PANEL_SIZE; 
+			isdense[panel_id*nc + idx] += 1;
 		}
 		// __syncthreads();
 		// printf("%d %d %d\n", idx, counter, panel_id);
-		if(counter >= DENSE_THRESHOLD)
-			isdense[idx] = 1;
-		else
-			isdense[idx] = 0;
+		int num_panels = nr/PANEL_SIZE;
+		for(int i=0; i<num_panels; i++)
+		{
+			int id = i*nc+idx;
+			// printf("%d %d %d\n", idx, i, isdense[id]);
+			if(isdense[id] >= DENSE_THRESHOLD)
+				isdense[id] = 1;
+			else
+				isdense[id] = 0;
+		}
 	}
-
 }
 
 __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int *D, int* O){
@@ -346,8 +347,8 @@ int main(int argc, char** argv)
 
 	
 	int r, c;
-	int rows[ne];
-	int cols[ne];
+	vi rows(ne, 0);
+	vi cols(ne, 0);
 	for(int i=0; i<ne; i++)
 	{
 		fscanf(fp, "%d %d", &r, &c);
@@ -358,7 +359,8 @@ int main(int argc, char** argv)
 	
 	
 	// // create column wise CSR
-	thrust::sort_by_key(cols, cols+ne, rows);
+	thrust::sort_by_key(cols.begin(), cols.begin()+ne, rows.begin());
+	cout << "sorted cols" << endl;
 	vi col_ptr(nc+1, 0);
 	vi row_idx(ne, 0);
 	for(int i=0; i<ne; i++)
@@ -379,8 +381,45 @@ int main(int argc, char** argv)
 	// 	cout << row_idx[i] << " ";
 	// cout << endl;
 	
+	// find dense tiles now
+	int num_panels = nr/PANEL_SIZE;
+	int thr = num_panels*nc;
+	cout << "tiles - " << thr << endl;
+
+	int *dcol_ptr;
+	int *drow_idx;
+	int *is_dense;
+	cudaMalloc(&dcol_ptr, (nc+1)*sizeof(int));
+	cudaMalloc(&drow_idx, ne*sizeof(int));
+	cudaMalloc(&is_dense, thr*sizeof(int));
+
+	cudaMemcpy(dcol_ptr, &col_ptr[0], (nc+1)*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(drow_idx, &row_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+
+	find_dense <<<(nc + 1023)/1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
+	
+	vi isdense(thr);
+	cudaMemcpy(&isdense[0], is_dense, thr*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaFree(dcol_ptr);
+	cudaFree(drow_idx);
+	cudaFree(is_dense);
+	
+	int total = 0;
+	for(int i=0; i<num_panels; i++)
+	{
+		for(int j=0; j<nc; j++)
+		{
+			// cout << isdense[i*nc + j] << " ";
+			if(isdense[i*nc+j])
+				total ++;
+		}
+		// cout << endl;
+	}
+	cout << "dense tiles - " << total << endl;
+
 	// // Create row wise CSR
-	thrust::sort_by_key(rows, rows+ne, cols);
+	thrust::sort_by_key(rows.begin(), rows.begin()+ne, cols.begin());
+	cout << "sorted row wise" << endl;
 	vi row_ptr(nr+1, 0);
 	vi col_idx(ne, 0);
 	vi col_val(ne, 1);
@@ -395,36 +434,8 @@ int main(int argc, char** argv)
 	for(int i=0; i<nr; i++)
 		row_ptr[i+1] += row_ptr[i];
 
-	// find dense tiles now
-	int num_panels = nr/PANEL_SIZE;
-	int thr = num_panels*nc;
-
-	int *dcol_ptr;
-	int *drow_idx;
-	int *is_dense;
-	cudaMalloc(&dcol_ptr, (nc+1)*sizeof(int));
-	cudaMalloc(&drow_idx, ne*sizeof(int));
-	cudaMalloc(&is_dense, thr*sizeof(int));
-
-	cudaMemcpy(dcol_ptr, &col_ptr[0], (nc+1)*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(drow_idx, &row_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
-
-	find_dense <<<(thr + 1023)/1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
-
-	int isdense[thr];
-	cudaMemcpy(isdense, is_dense, thr*sizeof(int), cudaMemcpyDeviceToHost);
-	cudaFree(dcol_ptr);
-	cudaFree(drow_idx);
-	cudaFree(is_dense);
-
-	// for(int i=0; i<num_panels; i++)
-	// {
-	// 	for(int j=0; j<nc; j++)
-	// 		cout << isdense[i*nc + j] << " ";
-	// 	cout << endl;
-	// }
-	
 	// // Reorder CSR so that dense elements are before the sparse ones
+	cout << "Reordering" << endl;
 	vi panel_ptr(num_panels+1, 0);
 	vi tile_row_ptr(1, 0);
 	for(int panel_id=0; panel_id<num_panels; ++panel_id)
@@ -516,13 +527,15 @@ int main(int argc, char** argv)
 	// 	cout << col_idx[i] << " ";
 	// cout << endl;
 
-	for(int i=0; i<= num_panels; i++)
-		cout << panel_ptr[i] << " ";
-	cout << endl;
-	for(int i=0; i<tile_row_ptr.size(); i++)
-		cout << tile_row_ptr[i] << " ";
-	cout << endl;
-	cout << endl;
+	// cout << "panel_ptr" << endl;
+	// for(int i=0; i<= num_panels; i++)
+	// 	cout << panel_ptr[i] << " ";
+	// cout << endl;
+	// cout << "tile_row_ptr" << endl;
+	// for(int i=0; i<tile_row_ptr.size(); i++)
+	// 	cout << tile_row_ptr[i] << " ";
+	// cout << endl;
+	// cout << endl;
 
 	vi host_DM(nc*32, 1);
 
@@ -551,13 +564,15 @@ int main(int argc, char** argv)
 	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
 
 	cudaFree(drow_ptr);
-	for(int i=0; i<nr; i++)
-	{
-		for(int j=0; j<32; j++)
-			cout << host_O[32*i + j] << " ";
-		cout << endl;
-	}
-	cout << endl;
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=0; j<32; j++)
+	// 		cout << host_O[32*i + j] << " ";
+	// 	cout << endl;
+	// }
+	// cout << endl;
+
+
 
 	// trying SPMM with tiling (no reordering)
 
@@ -572,13 +587,13 @@ int main(int argc, char** argv)
 	SPMM<<< num_panels, 32*PANEL_SIZE>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 	
 	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
-	for(int i=0; i<nr; i++)
-	{
-		for(int j=0; j<32; j++)
-			cout << host_O[32*i + j] << " ";
-		cout << endl;
-	}
-	cout << endl;
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=0; j<32; j++)
+	// 		cout << host_O[32*i + j] << " ";
+	// 	cout << endl;
+	// }
+	// cout << endl;
 
 	// call ASPT kernels
 	cudaMemset(O, 0, nr*32*sizeof(int));
@@ -587,12 +602,12 @@ int main(int argc, char** argv)
 	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
 	cudaMemcpy(host_O, O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
-	for(int i=0; i<nr; i++)
-	{
-		for(int j=0; j<32; j++)
-			cout << host_O[32*i + j] << " ";
-		cout << endl;
-	}
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=0; j<32; j++)
+	// 		cout << host_O[32*i + j] << " ";
+	// 	cout << endl;
+	// }
 
 	// int n = 6;
 	// int m = 6;
