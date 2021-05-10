@@ -1,6 +1,7 @@
 #include<iostream>
 #include<stdlib.h>
 #include<set>
+#include<map>
 #include<vector>
 #include<algorithm>
 #include<cuda.h>
@@ -15,8 +16,8 @@ using namespace std;
 #define t third
 
 
-#define PANEL_SIZE 21
-#define DENSE_THRESHOLD 5
+#define PANEL_SIZE 3
+#define DENSE_THRESHOLD 2
 
 __device__ __host__ int hashFn(int* data, int bsize)
 {
@@ -199,7 +200,7 @@ __global__ void SPMM(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_v
 	}
 }
 
-__global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int nc)
+__global__ void find_dense_GPU(int *col_ptr, int* row_idx, int *isdense, int nr, int nc)
 {	
 	int idx = blockIdx.x*blockDim.x + threadIdx.x;
 	if(idx < nc)
@@ -224,6 +225,32 @@ __global__ void find_dense(int *col_ptr, int* row_idx, int *isdense, int nr, int
 		}
 	}
 }
+
+ve <vi> find_dense_CPU(vi &col_ptr, vi& row_idx, int nr, int nc)
+{
+	int num_panels = nr/PANEL_SIZE;
+	ve <vi> result(num_panels, vi());
+
+	for(int j=0; j<nc; j++)
+	{
+		int panel_id;
+		vi is_dense(num_panels);
+		for(int i=col_ptr[j]; i<col_ptr[j+1]; i++)
+		{
+			panel_id = row_idx[i]/PANEL_SIZE;
+			is_dense[panel_id]++;
+		}
+		for(int i=0; i<num_panels; i++)
+		{
+			if(is_dense[i]>=DENSE_THRESHOLD)
+			{
+				result[i].push_back(j);
+			}
+		}
+	}	
+	return result;
+}
+
 
 __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int *D, int* O){
 
@@ -477,6 +504,70 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &hos
 	// }
 }
 
+void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, int nr, int nc, int ne)
+{
+	// // // create column wise CSR
+	// thrust::sort_by_key(cols.begin(), cols.begin()+ne, rows.begin());
+	// cout << "sorted cols" << endl;
+	// vi col_ptr(nc+1, 0);
+	// vi row_idx(ne, 0);
+	// for(int i=0; i<ne; i++)
+	// {
+	// 	// cout << cols[i] << " " << rows[i] << endl;
+	// 	col_ptr[cols[i]]++;
+	// 	row_idx[i] = rows[i]-1;
+	// }
+	
+	// for(int i=0; i<nc; i++)
+	// 	col_ptr[i+1] += col_ptr[i];
+	
+	// // for(int i=0; i<=nc; i++)
+	// // 	cout << col_ptr[i] << " ";
+	// // cout <<endl;
+	
+	// // for(int i=0; i<ne; i++)
+	// // 	cout << row_idx[i] << " ";
+	// // cout << endl;
+	
+	// // find dense tiles now
+	// int num_panels = nr/PANEL_SIZE;
+	// int thr = num_panels*nc;
+	// cout << "tiles - " << thr << endl;
+
+	// int *dcol_ptr;
+	// int *drow_idx;
+	// int *is_dense;
+	// cudaMalloc(&dcol_ptr, (nc+1)*sizeof(int));
+	// cudaMalloc(&drow_idx, ne*sizeof(int));
+	// cudaMalloc(&is_dense, thr*sizeof(int));
+
+	// cudaMemcpy(dcol_ptr, &col_ptr[0], (nc+1)*sizeof(int), cudaMemcpyHostToDevice);
+	// cudaMemcpy(drow_idx, &row_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+
+	// find_dense_GPU <<<(nc + 1023)/1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
+	
+	// vi isdense(thr);
+	// cudaMemcpy(&isdense[0], is_dense, thr*sizeof(int), cudaMemcpyDeviceToHost);
+	// cudaFree(dcol_ptr);
+	// cudaFree(drow_idx);
+	// cudaFree(is_dense);
+	
+	// int total = 0;
+	// for(int i=0; i<num_panels; i++)
+	// {
+	// 	for(int j=0; j<nc; j++)
+	// 	{
+	// 		// cout << isdense[i*nc + j] << " ";
+	// 		if(isdense[i*nc+j])
+	// 			total ++;
+	// 	}
+	// 	// cout << endl;
+	// }
+	// cout << "dense tiles - " << total << endl;
+	// // Create row wise CSR
+	// // same as in cpu
+}
+
 int main(int argc, char** argv)
 {
 	if(argc < 2)
@@ -500,7 +591,7 @@ int main(int argc, char** argv)
 		cols[i] = c; 
 	}
 	
-	// // create column wise CSR
+	// 
 	thrust::sort_by_key(cols.begin(), cols.begin()+ne, rows.begin());
 	cout << "sorted cols" << endl;
 	vi col_ptr(nc+1, 0);
@@ -525,46 +616,23 @@ int main(int argc, char** argv)
 	
 	// find dense tiles now
 	int num_panels = nr/PANEL_SIZE;
-	int thr = num_panels*nc;
-	cout << "tiles - " << thr << endl;
 
-	int *dcol_ptr;
-	int *drow_idx;
-	int *is_dense;
-	cudaMalloc(&dcol_ptr, (nc+1)*sizeof(int));
-	cudaMalloc(&drow_idx, ne*sizeof(int));
-	cudaMalloc(&is_dense, thr*sizeof(int));
-
-	cudaMemcpy(dcol_ptr, &col_ptr[0], (nc+1)*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(drow_idx, &row_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
-
-	find_dense <<<(nc + 1023)/1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
-	
-	vi isdense(thr);
-	cudaMemcpy(&isdense[0], is_dense, thr*sizeof(int), cudaMemcpyDeviceToHost);
-	cudaFree(dcol_ptr);
-	cudaFree(drow_idx);
-	cudaFree(is_dense);
-	
-	int total = 0;
+	ve <vi> dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
 	for(int i=0; i<num_panels; i++)
 	{
-		for(int j=0; j<nc; j++)
+		for(int j=0; j<dense[i].size(); j++)
 		{
-			// cout << isdense[i*nc + j] << " ";
-			if(isdense[i*nc+j])
-				total ++;
+			cout << dense[i][j] << " ";
 		}
-		// cout << endl;
+		cout << endl;
 	}
-	cout << "dense tiles - " << total << endl;
-
-	// // Create row wise CSR
 	thrust::sort_by_key(rows.begin(), rows.begin()+ne, cols.begin());
 	cout << "sorted row wise" << endl;
+	
 	vi row_ptr(nr+1, 0);
 	vi col_idx(ne, 0);
 	vi col_val(ne, 1);
+	vi col_map(ne, 0);
 
 	for(int i=0; i<ne; i++)
 	{
@@ -576,18 +644,18 @@ int main(int argc, char** argv)
 	for(int i=0; i<nr; i++)
 		row_ptr[i+1] += row_ptr[i];
 
-	// // Reorder CSR so that dense elements are before the sparse ones
 	cout << "Reordering" << endl;
 	vi panel_ptr(num_panels+1, 0);
 	vi tile_row_ptr(1, 0);
+
 	for(int panel_id=0; panel_id<num_panels; ++panel_id)
 	{
-		set <int> densecols;
-		for(int j=0; j<nc; j++)
+		map <int, int> densecols;
+		for(int j=0; j<dense[panel_id].size(); j++)
 		{
-			if(isdense[panel_id*nc + j])
-				densecols.insert(j);
+			densecols[ dense[panel_id][j] ] = j;
 		}
+
 		panel_ptr[panel_id+1] = densecols.size()+1; // one sparse panel
 
 		for(int i = panel_id*PANEL_SIZE; i<(panel_id+1)*PANEL_SIZE; ++i)
@@ -600,31 +668,39 @@ int main(int argc, char** argv)
 			for(int k=row_ptr[i]; k<row_ptr[i+1]; ++k)
 			{
 				if(densecols.find( col_idx[k] ) == densecols.end() )
+				{
 					temp2.push_back( make_pair(col_idx[k], col_val[k]));
+				}
 				else
+				{
 					temp1.push_back( make_pair(col_idx[k], col_val[k]));
+				}
 			}
 
 			int counter = 0;
 			for(int k=row_ptr[i]; k<row_ptr[i+1]; ++k)
 			{
-				if(counter < temp1.size())
+				if(counter < temp1.size()) // dense columns
 				{
 					col_idx[k] = temp1[counter].f;
 					col_val[k] = temp1[counter].s;
+					col_map[k] = densecols[col_idx[k]];
 				}
-				else
+				else	// sparse columns
 				{
 					col_idx[k] = temp2[counter - temp1.size()].f;
 					col_val[k] = temp2[counter - temp1.size()].s;
+					col_map[k] = -1;
 				}
 				++counter;
 			}
 			
 			counter = 0;
 			int found = 0;
-			for(auto el:densecols)
+			for(auto mapel:densecols)
 			{
+				auto el = mapel.f;
+				cout << el << ' ';
 				found = 0;
 				for(int k = row_ptr[i]; k<row_ptr[i+1]; ++k)
 				{
@@ -644,6 +720,7 @@ int main(int argc, char** argv)
 				
 				// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
 			}
+			cout << endl;
 			tile_row_ptr.push_back(row_ptr[i+1] - row_ptr[i] - counter);
 
 		}
@@ -651,33 +728,37 @@ int main(int argc, char** argv)
 		// densecols.clear();
 	}
 
-	// for(int i=0; i<tile_row_ptr.size(); i++)
-	// 	cout << tile_row_ptr[i] << " ";
-	// cout << endl;
-
 	for(int i=0; i<num_panels; i++)
 		panel_ptr[i+1] += panel_ptr[i];
 
 	for(int i=1; i<tile_row_ptr.size(); i++)
 		tile_row_ptr[i] += tile_row_ptr[i-1];
 
-	// for(int i=0; i<=nr; i++)
-	// 	cout << row_ptr[i] << " ";
-	// cout <<endl;
+	cout << "row_ptr" << endl;
+	for(int i=0; i<=nr; i++)
+		cout << row_ptr[i] << " ";
+	cout <<endl;
 	
-	// for(int i=0; i<ne; i++)
-	// 	cout << col_idx[i] << " ";
-	// cout << endl;
+	cout << "col_idx" << endl;
+	for(int i=0; i<ne; i++)
+		cout << col_idx[i] << " ";
+	cout << endl;
 
-	// cout << "panel_ptr" << endl;
-	// for(int i=0; i<= num_panels; i++)
-	// 	cout << panel_ptr[i] << " ";
-	// cout << endl;
-	// cout << "tile_row_ptr" << endl;
-	// for(int i=0; i<tile_row_ptr.size(); i++)
-	// 	cout << tile_row_ptr[i] << " ";
-	// cout << endl;
-	// cout << endl;
+	cout << "panel_ptr" << endl;
+	for(int i=0; i<= num_panels; i++)
+		cout << panel_ptr[i] << " ";
+	cout << endl;
+	cout << "tile_row_ptr" << endl;
+	for(int i=0; i<tile_row_ptr.size(); i++)
+		cout << tile_row_ptr[i] << " ";
+	cout << endl;
+	cout << endl;
+	
+	cout << "dense col mapping" << endl;
+	for(int i=0; i<col_map.size(); i++)
+		cout << col_map[i] << " ";
+	cout << endl;
+
 
 	vi host_DM(nc*32, 1);
 
@@ -686,9 +767,9 @@ int main(int argc, char** argv)
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 	
 
-	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	
 }
 
