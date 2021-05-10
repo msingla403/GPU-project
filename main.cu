@@ -430,12 +430,19 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMalloc(&DM, nc*32*sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc*32*sizeof(int), cudaMemcpyHostToDevice);
 
-	int* O;
-	cudaMalloc(&O, nr*32*sizeof(int));
-	cudaMemset(O, 0, nr*32*sizeof(int));
+	int* O1,*O2;
+	cudaMalloc(&O1, nr*32*sizeof(int));
+	cudaMemset(O1, 0, nr*32*sizeof(int));
+	cudaMalloc(&O2, nr*32*sizeof(int));
+	cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
-	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
-	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+
+	cudaStream_t s1, s2;
+	cudaStreamCreate(&s1);
+	cudaStreamCreate(&s2);
+
+	ASPT_dense<<< num_panels, PANEL_SIZE*32,0,s1>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32,0,s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
 
 	vi host_O(nr*32);
 	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
