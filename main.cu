@@ -254,7 +254,7 @@ ve <vi> find_dense_CPU(vi &col_ptr, vi& row_idx, int nr, int nc)
 
 __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* col_map, int *D, int* O){
 
-	extern __shared__ int s[];
+	extern __shared__ int shared_D[];
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
@@ -264,59 +264,22 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 	int global_row = row_panel_id*PANEL_SIZE + row_id;
 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
 
-	int * map_tiles = s;
-	int * mapping = s + (num_tiles-1)*PANEL_SIZE;
-	int * shared_D = mapping + (num_tiles-1);
 
-	// __shared__ int map_tiles[(num_tiles-1)*PANEL_SIZE];
-	// __shared__ int mapping[num_tiles-1];
-	// __shared__ int shared_D[num_tiles-1][32];
 
-	if(thread_no==0){
-		for(int i=0;i<num_tiles-1;++i){
+	for(int i=0;i<num_tiles-1;++i){
 
-			int low = tile_row_ptr[ptr+i];
-			int high = tile_row_ptr[ptr+i+1];
+		int low = tile_row_ptr[ptr+i];
+		int high = tile_row_ptr[ptr+i+1];
 
-			if(high>low){
-				map_tiles[i+row_id*(num_tiles-1)]=col_idx[low];
-			}
-			else{
-				map_tiles[i+row_id*(num_tiles-1)]=INT_MAX;
-			}
+		if(high>low){
+			shared_D[low*32+thread_no] = D[col_idx[low]*32+thread_no];
 		}
+
 	}
+	
 
 	__syncthreads();
 
-	// if(row_id%PANEL_SIZE==0){
-
-	// 	if(threadIdx.x==0){
-
-	// 		thrust::sort(thrust::seq, map_tiles, map_tiles + (num_tiles-1)*PANEL_SIZE);
-			
-	// 		int i=0,j=0,k=0;
-
-	// 		while(i<(num_tiles-1)*PANEL_SIZE && map_tiles[i]!=INT_MAX){
-	// 			mapping[k] = map_tiles[i];
-	// 			k++;
-
-	// 			while(j<(num_tiles-1)*PANEL_SIZE && map_tiles[j]!=INT_MAX && map_tiles[j]==map_tiles[i]){
-	// 				j++;
-	// 			}
-
-	// 			i=j;
-	// 		}
-
-	// 	}
-
-	// 	for(int i=0;i<num_tiles-1;++i){
-	// 		int ind = mapping[i];
-	// 		shared_D[i*32 + thread_no] = D[ind*32 + thread_no];
-	// 	}
-	// }
-
-	// __syncthreads();
 
 	for(int i=0;i<num_tiles-1;++i){
 
@@ -326,17 +289,11 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 
 		if(high>low){
 
-			int ind = col_idx[low];
-
-			// for(int j=0;j<num_tiles-1;++j){
-			// 	if(mapping[j]==ind){
-			// 		ind = j;
-			// 		break;
-			// 	}
-			// }
-			// O[global_row*32 + thread_no] += col_val[ind] * shared_D[ind*32 + thread_no];
+			int ind = col_map[low];
+			O[global_row*32 + thread_no] += col_val[low] * shared_D[ind*32 + thread_no];
 		}
 	}
+
 
 	int i = num_tiles-1;
 
@@ -354,25 +311,25 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 
 }
 
-__global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
-	int row_panel_id = blockIdx.x;
-	int row_id = threadIdx.x/32;
-	int thread_no = threadIdx.x%32;
+// __global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
+// 	int row_panel_id = blockIdx.x;
+// 	int row_id = threadIdx.x/32;
+// 	int thread_no = threadIdx.x%32;
 
-	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
-	int global_row = row_panel_id*PANEL_SIZE + row_id;
-	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
-
-
+// 	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+// 	int global_row = row_panel_id*PANEL_SIZE + row_id;
+// 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
 
 
-	int low = tile_row_ptr[ptr];
-	int high = tile_row_ptr[ptr+1];
+
+
+// 	int low = tile_row_ptr[ptr];
+// 	int high = tile_row_ptr[ptr+1];
 
 
 	
 
-}
+// }
 
 void run_MM(vi &row_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
 {
