@@ -229,7 +229,7 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 	int thread_no = threadIdx.x%32;
 
 	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
-
+	int global_row = row_panel_id*PANEL_SIZE + row_id;
 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles;
 
 	int * map_tiles = s;
@@ -302,40 +302,34 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 					break;
 				}
 			}
-
-			O[row_id][thread_no] += col_val[j] * shared_D[j][thread_no];
+			O[global_row*32 + thread_no] += col_val[ind] * shared_D[ind*32 + thread_no];
 		}
 	}
 }
 
-__global__ void ASPT_sparse(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* D, int* O){
+__global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x/32;
 	int thread_no = threadIdx.x%32;
 
 	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
-
+	int global_row = row_panel_id*PANEL_SIZE + row_id;
 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
 
 
 
 
-	int low = tile_row_ptr[i+ptr];
-	int high = tile_row_ptr[i+ptr+1];
+	int low = tile_row_ptr[ptr];
+	int high = tile_row_ptr[ptr+1];
 
 
 	for(int i=low;i<high;++i){
 
-		int ind = col_idx[i];
+		int j= col_idx[i];
 
-		for(int j=0;j<num_tiles-1;++j){
-			if(mapping[j]==ind){
-				ind = j;
-				break;
-			}
-		}
-		O[row_id][thread_no] += col_val[j] * D[j][thread_no];
+		O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
 	}
+
 }
 
 
@@ -588,7 +582,7 @@ int main(int argc, char** argv)
 
 	// call ASPT kernels
 	cudaMemset(O, 0, nr*32*sizeof(int));
-	cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
+	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
