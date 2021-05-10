@@ -252,7 +252,7 @@ ve <vi> find_dense_CPU(vi &col_ptr, vi& row_idx, int nr, int nc)
 }
 
 
-__global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int *D, int* O){
+__global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int* col_val, int* col_map, int *D, int* O){
 
 	extern __shared__ int s[];
 
@@ -458,7 +458,7 @@ void run_SPMM(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &hos
 	// cout << endl;
 }
 
-void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
+void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col_map, vi &host_DM, int nr, int nc, int ne)
 {
 	// call ASPT kernels
 	int num_panels = nr/PANEL_SIZE;
@@ -467,15 +467,18 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &hos
 	int* dpanel_ptr;
 	int *dcol_idx;
 	int *dcol_val;
+	int *dcol_map;
 	cudaMalloc(&dtile_row_ptr, tile_row_ptr.size() * sizeof(int));
 	cudaMalloc(&dpanel_ptr, panel_ptr.size() * sizeof(int));
 	cudaMalloc(&dcol_idx, ne*sizeof(int));
 	cudaMalloc(&dcol_val, ne*sizeof(int));
+	cudaMalloc(&dcol_map, ne*sizeof(int));
 
 	cudaMemcpy(dtile_row_ptr, &tile_row_ptr[0], tile_row_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dpanel_ptr, &panel_ptr[0], panel_ptr.size()*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dcol_idx, &col_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dcol_val, &col_val[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_map, &col_map[0], ne*sizeof(int), cudaMemcpyHostToDevice);
 
 	int *DM;
 	cudaMalloc(&DM, nc*32*sizeof(int));
@@ -485,7 +488,7 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &hos
 	cudaMalloc(&O, nr*32*sizeof(int));
 	cudaMemset(O, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
-	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_dense<<< num_panels, PANEL_SIZE*32, 32*1024>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
 	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
 	vi host_O(nr*32);
@@ -495,6 +498,7 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &hos
 	cudaFree(dpanel_ptr);
 	cudaFree(dcol_idx);
 	cudaFree(dcol_val);
+	cudaFree(dcol_map);
 	cudaFree(O);
 	// for(int i=0; i<nr; i++)
 	// {
@@ -769,7 +773,7 @@ int main(int argc, char** argv)
 
 	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 	
 }
 
