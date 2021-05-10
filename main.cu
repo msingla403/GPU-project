@@ -310,6 +310,21 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 			// O[global_row*32 + thread_no] += col_val[ind] * shared_D[ind*32 + thread_no];
 		}
 	}
+
+	int i = num_tiles-1;
+
+	int low = tile_row_ptr[i+ptr];
+	int high = tile_row_ptr[i+ptr+1];
+
+
+
+	for(int i=low;i<high;++i){
+
+		int j= col_idx[i];
+
+		O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
+	}
+
 }
 
 __global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
@@ -328,12 +343,7 @@ __global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, i
 	int high = tile_row_ptr[ptr+1];
 
 
-	for(int i=low;i<high;++i){
-
-		int j= col_idx[i];
-
-		O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
-	}
+	
 
 }
 
