@@ -294,42 +294,31 @@ __global__ void ASPT_dense(int* tile_row_ptr, int* panel_ptr, int* col_idx, int*
 		}
 	}
 
-
-	// int i = num_tiles-1;
-
-	// int low = tile_row_ptr[i+ptr];
-	// int high = tile_row_ptr[i+ptr+1];
-
-
-
-	// for(int i=low;i<high;++i){
-
-	// 	int j= col_idx[i];
-
-	// 	O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
-	// }
-
 }
 
-// __global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
-// 	int row_panel_id = blockIdx.x;
-// 	int row_id = threadIdx.x/32;
-// 	int thread_no = threadIdx.x%32;
+__global__ void ASPT_sparse(int* tile_row_ptr, int * panel_ptr, int * col_idx, int * col_val, int* D, int *O){
+	
+	int row_panel_id = blockIdx.x;
+	int row_id = threadIdx.x/32;
+	int thread_no = threadIdx.x%32;
 
-// 	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
-// 	int global_row = row_panel_id*PANEL_SIZE + row_id;
-// 	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
-
-
-
-
-// 	int low = tile_row_ptr[ptr];
-// 	int high = tile_row_ptr[ptr+1];
+	int num_tiles = panel_ptr[row_panel_id+1] - panel_ptr[row_panel_id];
+	int global_row = row_panel_id*PANEL_SIZE + row_id;
+	int ptr = panel_ptr[row_panel_id]*PANEL_SIZE + row_id*num_tiles + num_tiles-1;
 
 
+	int low = tile_row_ptr[ptr];
+	int high = tile_row_ptr[ptr+1];
+
+	for(int i=low;i<high;++i){
+
+		int j= col_idx[i];
+
+		O[global_row*32+thread_no] += col_val[j] * D[j*32+thread_no];
+	}
 	
 
-// }
+}
 
 void run_MM(vi &row_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne)
 {
@@ -446,7 +435,7 @@ void run_ASPT(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &col
 	cudaMemset(O, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 	ASPT_dense<<< num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O);
-	// ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	ASPT_sparse<<<num_panels, PANEL_SIZE*32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
 
 	vi host_O(nr*32);
 	cudaMemcpy(&host_O[0], O, nr*32*sizeof(int), cudaMemcpyDeviceToHost);
