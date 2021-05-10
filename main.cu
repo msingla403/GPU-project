@@ -446,6 +446,7 @@ int main(int argc, char** argv)
 	}
 	cout << endl;
 
+	// trying SPMM with tiling (no reordering)
 
 	int* dtile_row_ptr;
 	int* dpanel_ptr;
@@ -465,6 +466,7 @@ int main(int argc, char** argv)
 		cout << endl;
 	}
 
+	
 
 	// int n = 6;
 	// int m = 6;
