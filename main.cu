@@ -138,7 +138,8 @@ set<pairi > LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets) {
 
 class trio {
  public:
-	int first, second, third;
+	float first; 
+	int second, third;
 
 	void print() {
 		cout << first << " " << second << " " << third << endl;
@@ -192,7 +193,7 @@ float J(vi &rowptr, vi &colidx, int i, int j){
 class mkDSU{
  public:
 	vector<int>id,size,deleted;
-	int nclusters,threshold_size;
+	int nclusters,threshold_size, n;
 
 	mkDSU(int n,int threshold){
 		id.resize(n);
@@ -206,6 +207,7 @@ class mkDSU{
 		}
 		nclusters=n-1;
 		threshold_size=threshold;
+		n = n;
 	}
 
 	int find(int a){
@@ -223,10 +225,10 @@ class mkDSU{
 
 	void union_(set<pairi>& candidate_pairs, vi &rowptr, vi &colidx){
 
-		set<trio,compare()> sim_queue;
+		set<trio,compare> sim_queue;
 
 		for(auto it:candidate_pairs)
-			sim_queue.insert({J(rowptr,colidx,it.f,it.s),it.f,it.s});
+			sim_queue.insert(trio(J(rowptr,colidx,it.f,it.s), it.f, it.s));
 
 		while(sim_queue.size() && nclusters>0){
 			auto it = sim_queue.begin();
@@ -253,7 +255,7 @@ class mkDSU{
 				}
 				else{
 					id[j] = i;
-					clusters--;
+					nclusters--;
 
 					size[i] += size[j];
 
@@ -272,7 +274,8 @@ class mkDSU{
 					continue;
 
 				if(candidate_pairs.find({temp.s,temp.t})==candidate_pairs.end()){
-					sim_queue.insert({J(S,c1,c2),min(c1,c2),max(c1,c2)});
+					
+					sim_queue.insert(trio(J(rowptr, colidx,c1,c2),min(c1,c2),max(c1,c2)));
 					candidate_pairs.insert({min(c1,c2),max(c1,c2)});
 				}
 			}
@@ -289,7 +292,7 @@ class mkDSU{
 		vi ans;
 
 		for(auto it:clusters){
-			for(auto ut:it){
+			for(auto ut:it.s){
 				ans.push_back(ut);
 			}
 		}
@@ -304,6 +307,7 @@ class mkDSU{
 
 vi reordered_rows(vi &rowptr, vi &colidx){
 	
+	int n = rowptr.size() - 1;
 
 	set<pairi> candidate_pairs = LSH(rowptr,colidx,5,5,5);
 
@@ -601,8 +605,7 @@ void run_ASPT(vi &tile_row_ptr,
 	cudaStreamCreate(&s2);
 
 	ASPT_dense<<< num_panels, PANEL_SIZE * 32, 0, s1>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
-	ASPT_sp
-	arse<<<num_panels, PANEL_SIZE * 32, 0, s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
+	ASPT_sparse<<<num_panels, PANEL_SIZE * 32, 0, s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
 
 	vi host_O1(nr * 32);
 	vi host_O2(nr * 32);
