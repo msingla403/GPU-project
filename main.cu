@@ -152,17 +152,17 @@ class trio {
 		third = c;
 	}
 
-	class compare {
-	 public:
-		bool operator()(const trio &a, const trio &b) const {
-			if (a.f == b.f){
-				if(a.s==b.s)
-					return a.t<b.t;
-				return a.s<b.s;
-			}
-			return a.f > b.f;
-		}
-	};
+};
+class compare {
+public:
+   bool operator()(const trio &a, const trio &b) const {
+	   if (a.f == b.f){
+		   if(a.s==b.s)
+			   return a.t<b.t;
+		   return a.s<b.s;
+	   }
+	   return a.f > b.f;
+   }
 };
 
 float J(vi &rowptr, vi &colidx, int i, int j){
@@ -172,12 +172,12 @@ float J(vi &rowptr, vi &colidx, int i, int j){
 	set<int>s;
 
 	for(int k=rowptr[i];k<rowptr[i+1];++k){
-		s.insert(col_idx[k]);
+		s.insert(colidx[k]);
 		count++;
 	}
 
 	for(int k=rowptr[j];k<rowptr[j+1];++k){
-		if(s.find(col_idx[k])!=s.end()){
+		if(s.find(colidx[k])!=s.end()){
 			ans++;
 		}
 		else{
@@ -191,14 +191,15 @@ float J(vi &rowptr, vi &colidx, int i, int j){
 
 class mkDSU{
  public:
-	vector<int>id,size,deleted,nclusters,threshold_size;
+	vector<int>id,size,deleted;
+	int nclusters,threshold_size;
 
 	mkDSU(int n,int threshold){
 		id.resize(n);
 		size.resize(n);
 		deleted.resize(n);
 
-		FOR(i,0,n){
+		for(int i=0; i<n; i++){
 			id[i]=i;
 			size[i]=1;
 			deleted[i]=0;
@@ -222,7 +223,7 @@ class mkDSU{
 
 	void union_(set<pairi>& candidate_pairs, vi &rowptr, vi &colidx){
 
-		set<trio,trio::compare()> sim_queue;
+		set<trio,compare()> sim_queue;
 
 		for(auto it:candidate_pairs)
 			sim_queue.insert({J(rowptr,colidx,it.f,it.s),it.f,it.s});
@@ -722,8 +723,12 @@ int main(int argc, char **argv) {
 
 	for(int i=0;i<ne;++i){
 		rows[i] = order_rows[rows[i]-1]; 
+		cout << rows[i] << " ";
 	}
+	cout << endl;
 
+	
+	return 0;
 
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
@@ -883,9 +888,9 @@ int main(int argc, char **argv) {
 	cudaMalloc(&DM, nc * 32 * sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
 
-	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
+	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 
 }
 
