@@ -18,6 +18,10 @@ using namespace std;
 #define PANEL_SIZE 21
 #define DENSE_THRESHOLD 5
 
+#define SIGLEN 10
+#define BAND_SIZE 10 
+#define NUM_BUCKETS 16
+
 __device__ __host__ int hashFn(int *data, int bsize) {
 	int res = bsize;
 	for (int i = 0; i < bsize; i++) {
@@ -64,6 +68,7 @@ __global__ void getBuckets(int *sigs, int *res, int n, int siglen, int bsize, in
 	}
 }
 
+// siglen % bsize ==0 ;  siglen anything.. 
 set<pairi > LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets) {
 	int n = rowptr.size() - 1;
 
@@ -92,8 +97,8 @@ set<pairi > LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets) {
 
 	getSig<<< (n + 1023 / 1024), 1024>>> (drowptr, dcolidx, dperms, dsigs, siglen, n);
 
-	int sigs[n * siglen];
-	cudaMemcpy(sigs, dsigs, n * siglen * sizeof(int), cudaMemcpyDeviceToHost);
+	vi sigs(n * siglen);
+	cudaMemcpy(&sigs[0], dsigs, n * siglen * sizeof(int), cudaMemcpyDeviceToHost);
 	cudaFree(drowptr);
 	cudaFree(dcolidx);
 	cudaFree(dperms);
@@ -186,7 +191,7 @@ float J(vi &rowptr, vi &colidx, int i, int j){
 		}
 	}
 
-
+	// cout <<"J " <<  ans/count << endl;
 	return ans/count;
 }
 
@@ -197,6 +202,7 @@ class mkDSU{
 
 	mkDSU(int n,int threshold){
 		id.resize(n);
+		// cout << "DSU " << n << endl;
 		size.resize(n);
 		deleted.resize(n);
 
@@ -207,7 +213,7 @@ class mkDSU{
 		}
 		nclusters=n-1;
 		threshold_size=threshold;
-		n = n;
+		this->n = n;
 	}
 
 	int find(int a){
@@ -269,7 +275,7 @@ class mkDSU{
 
 				int c1 = find(temp.s);
 				int c2 = find(temp.t);
-
+				// cout << "found " << c1 << ' ' << c2 << endl;
 				if(deleted[c1] || deleted[c2] || c1==c2)
 					continue;
 
@@ -284,7 +290,7 @@ class mkDSU{
 
 	vi order_clusters(){
 		map<int,vi> clusters;
-
+		cout << n << endl;
 		for(int i=0;i<n;++i){
 			clusters[find(i)].push_back(i);
 		}
@@ -304,19 +310,30 @@ class mkDSU{
 
 
 
-
 vi reordered_rows(vi &rowptr, vi &colidx){
 	
 	int n = rowptr.size() - 1;
 
-	set<pairi> candidate_pairs = LSH(rowptr,colidx,5,5,5);
+	set<pairi> candidate_pairs = LSH(rowptr,colidx,SIGLEN, BAND_SIZE, NUM_BUCKETS);
 
-	mkDSU dsu(n,10);
-
+	// cout << "here pairs" << endl;
+	cout << candidate_pairs.size() << endl;
+	for(auto it:candidate_pairs)
+	{
+		cout << it.f << " " << it.s << endl;
+	}
+	mkDSU dsu(n, 5*PANEL_SIZE);
+	cout << n << endl;
 	dsu.union_(candidate_pairs,rowptr,colidx);
 
 	vi ans = dsu.order_clusters();
 
+	// for(auto it: ans)
+	// {
+	// 	cout << it << " ";
+	// }
+	// cout << endl;
+	// return vi(n, 0);
 	return ans;
 }
 
@@ -619,11 +636,11 @@ void run_ASPT(vi &tile_row_ptr,
 	cudaFree(dcol_map);
 	cudaFree(O1);
 	cudaFree(O2);
-	for (int i = 0; i < nr; i++) {
-		for (int j = 0; j < 32; j++)
-			cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
-		cout << endl;
-	}
+	// for (int i = 0; i < nr; i++) {
+	// 	for (int j = 0; j < 32; j++)
+	// 		cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
+	// 	cout << endl;
+	// }
 }
 
 void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, int nr, int nc, int ne) {
@@ -723,16 +740,16 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < nr; i++)
 		temp_row_ptr[i + 1] += temp_row_ptr[i];
 
-
+	// cout << "here" << endl;
 	vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
 
-
+	// cout << endl;
 	for(int i=0;i<ne;++i){
-		rows[i] = order_rows[rows[i]-1]; 
-		cout << rows[i] << " ";
+		// cout << rows[i] << " ";
+ 		rows[i] = order_rows[rows[i]-1] + 1; 
+		// cout << rows[i] << endl;
 	}
 	cout << endl;
-
 	
 	return 0;
 
@@ -761,14 +778,17 @@ int main(int argc, char **argv) {
 	int num_panels = nr / PANEL_SIZE;
 
 	ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
-	// for(int i=0; i<num_panels; i++)
-	// {
-	// 	for(int j=0; j<dense[i].size(); j++)
-	// 	{
-	// 		cout << dense[i][j] << " ";
-	// 	}
-	// 	cout << endl;
-	// }
+	int ndensecols=0;
+	for(int i=0; i<num_panels; i++)
+	{
+		ndensecols += dense[i].size();
+		// for(int j=0; j<dense[i].size(); j++)
+		// {
+		// 	cout << dense[i][j] << " ";
+		// }
+		// cout << endl;
+	}
+	cout << "dense cols # " << ndensecols << endl;
 	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
 	cout << "sorted row wise" << endl;
 
@@ -894,9 +914,9 @@ int main(int argc, char **argv) {
 	cudaMalloc(&DM, nc * 32 * sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
 
-	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
+	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 
 }
 
