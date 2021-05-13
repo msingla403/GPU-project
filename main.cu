@@ -233,6 +233,9 @@ class mkDSU{
 			trio temp =  *it;
 			sim_queue.erase(it);
 
+			int i = temp.s;
+			int j = temp.t;
+
 			if(i==id[i] && j==id[j]){
 				if(deleted[i] || deleted[j])
 					continue;
