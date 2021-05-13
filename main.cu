@@ -15,7 +15,7 @@ using namespace std;
 #define s second
 #define t third
 
-#define PANEL_SIZE 21
+#define PANEL_SIZE 20
 #define DENSE_THRESHOLD 5
 
 #define SIGLEN 10
@@ -741,17 +741,17 @@ int main(int argc, char **argv) {
 		temp_row_ptr[i + 1] += temp_row_ptr[i];
 
 	// cout << "here" << endl;
-	vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
+	// vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
 
 	// cout << endl;
-	for(int i=0;i<ne;++i){
-		// cout << rows[i] << " ";
- 		rows[i] = order_rows[rows[i]-1] + 1; 
-		// cout << rows[i] << endl;
-	}
-	cout << endl;
+	// for(int i=0;i<ne;++i){
+	// 	// cout << rows[i] << " ";
+ 	// 	rows[i] = order_rows[rows[i]-1] + 1; 
+	// 	// cout << rows[i] << endl;
+	// }
+	// cout << endl;
 	
-	return 0;
+	
 
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
@@ -913,7 +913,7 @@ int main(int argc, char **argv) {
 	int *DM;
 	cudaMalloc(&DM, nc * 32 * sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
-
+	cout << " multiplying" << endl;
 	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
