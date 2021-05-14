@@ -83,7 +83,12 @@ __global__ void getBuckets(int *sigs,
 	}
 }
 
-// siglen % bsize ==0 ;  siglen anything.. 
+/* 
+siglen % bsize ==0 ;  siglen anything.. 
+Local Sensitive Hashing
+Given the vectors, the LSH will divide them into buckets suck that similar vectors come in same bucket.
+ */
+
 set<pairi > LSH(vi &rowptr, 
 					vi &colidx, 
 					int siglen, 
@@ -193,6 +198,11 @@ class compare {
 	}
 };
 
+/*
+Jaccard function to tell Jaccard value between two vectors
+J (v1,v2) = |v1 ∩ v2| / |v1 ∪ v2|
+
+*/
 float J(vi &rowptr, vi &colidx, int i, int j) {
 
 	float ans = 0.0;
