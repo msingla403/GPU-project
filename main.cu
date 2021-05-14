@@ -505,6 +505,8 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 
 	__syncthreads();
 
+	//mapping dense matrix rows from global memory to shared dense memory
+
 	for (int i = 0; i < num_tiles - 1; ++i) {
 
 		int low = tile_row_ptr[ptr + i];
@@ -521,6 +523,8 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 
 	__syncthreads();
 
+	// normal matrix multiplication
+
 	for (int i = 0; i < num_tiles - 1; ++i) {
 
 		int low = tile_row_ptr[i + ptr];
@@ -534,6 +538,8 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 	}
 
 }
+
+// normal matrix multiplication on remaining sparse tiles
 
 __global__ void ASPT_sparse(int *tile_row_ptr,
 									 int *panel_ptr,
