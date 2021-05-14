@@ -1115,12 +1115,6 @@ int main(int argc, char **argv) {
 	for (int i = 1; i < reordered_tile_row_ptr.size(); i++)
 		reordered_tile_row_ptr[i] += reordered_tile_row_ptr[i - 1];
 
-
-	vi host_DM(nc * 32, 1);
-
-	int *DM;
-	cudaMalloc(&DM, nc * 32 * sizeof(int));
-	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
 	cout << " multiplying" << endl;
 
 	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
