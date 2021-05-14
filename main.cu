@@ -15,16 +15,15 @@ using namespace std;
 #define s second
 #define t third
 
-#define PANEL_SIZE 20
+#define PANEL_SIZE 21
 #define DENSE_THRESHOLD 5
 
 #define SIGLEN 10
 #define BAND_SIZE 10
 #define NUM_BUCKETS 16
 
-__device__ __host__
-
-int hashFn(int *data, int bsize) {
+#define DEBUG 0
+__device__ __host__ int hashFn(int *data, int bsize) {
 
 	int res = bsize;
 	for (int i = 0; i < bsize; i++) {
@@ -338,16 +337,18 @@ class mkDSU {
 	}
 };
 
-vi reordered_rows(vi &rowptr, vi &colidx) {
+vi reorder_rows(vi &rowptr, vi &colidx) {
 
 	int n = rowptr.size() - 1;
 
 	set<pairi > candidate_pairs = LSH(rowptr, colidx, SIGLEN, BAND_SIZE, NUM_BUCKETS);
 
-	// cout << "here pairs" << endl;
-	cout << candidate_pairs.size() << endl;
-	for (auto it:candidate_pairs) {
-		cout << it.f << " " << it.s << endl;
+	if(DEBUG){
+		cout << "Candidate pairs ";
+		cout << candidate_pairs.size() << endl;
+		for (auto it:candidate_pairs) {
+			cout << it.f << " " << it.s << endl;
+		}
 	}
 	mkDSU dsu(n, 5 * PANEL_SIZE);
 	cout << n << endl;
@@ -561,11 +562,21 @@ void run_MM(vi &row_ptr,
 
 	int *O;
 	cudaMalloc(&O, nr * 32 * sizeof(int));
-	MM <<< (nr * 32 + 1023) / 1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
 
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	float miliseconds = 0;
+	cudaEventRecord(start, 0);
+	MM <<< (nr * 32 + 1023) / 1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
+	cudaDeviceSynchronize();
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&miliseconds, start, stop);
+	cout << "MM time " << miliseconds << endl;
 	vi host_O(nr * 32);
 	cudaMemcpy(&host_O[0], O, nr * 32 * sizeof(int), cudaMemcpyDeviceToHost);
-
+	
 	cudaFree(drow_ptr);
 	cudaFree(dcol_idx);
 	cudaFree(dcol_val);
@@ -611,7 +622,19 @@ void run_SPMM(vi &tile_row_ptr,
 	int *O;
 	cudaMalloc(&O, nr * 32 * sizeof(int));
 	cudaMemset(O, 0, nr * 32 * sizeof(int));
+	
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	float miliseconds = 0;
+	cudaEventRecord(start, 0);
+
 	SPMM<<< num_panels, 32 * PANEL_SIZE>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O);
+	cudaDeviceSynchronize();
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&miliseconds, start, stop);
+	cout << "SpMM time " << miliseconds << endl;
 
 	vi host_O(nr * 32);
 	cudaMemcpy(&host_O[0], O, nr * 32 * sizeof(int), cudaMemcpyDeviceToHost);
@@ -673,12 +696,32 @@ void run_ASPT(vi &tile_row_ptr,
 	// cudaMemset(O2, 0, nr*32*sizeof(int));
 	// cudaDeviceSetCacheConfig(ASPT_dense, cudaFuncCachePreferShared);
 
-	cudaStream_t s1, s2;
-	cudaStreamCreate(&s1);
-	cudaStreamCreate(&s2);
+	// cudaStream_t s1, s2;
+	// cudaStreamCreate(&s1);
+	// cudaStreamCreate(&s2);
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	float miliseconds = 0;
+	cudaEventRecord(start, 0);
+	ASPT_dense<<< num_panels, PANEL_SIZE * 32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
+	cudaDeviceSynchronize();
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&miliseconds, start, stop);
+	cout << "ASpT Dense time " << miliseconds << endl;
 
-	ASPT_dense<<< num_panels, PANEL_SIZE * 32, 0, s1>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, dcol_map, DM, O1);
-	ASPT_sparse<<<num_panels, PANEL_SIZE * 32, 0, s2>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
+	cudaEvent_t start2, stop2;
+	cudaEventCreate(&start2);
+	cudaEventCreate(&stop2);
+	miliseconds = 0;
+	cudaEventRecord(start2, 0);
+	ASPT_sparse<<<num_panels, PANEL_SIZE * 32>>>(dtile_row_ptr, dpanel_ptr, dcol_idx, dcol_val, DM, O2);
+	cudaDeviceSynchronize();
+	cudaEventRecord(stop2, 0);
+	cudaEventSynchronize(stop2);
+	cudaEventElapsedTime(&miliseconds, start2, stop2);
+	cout << "ASpT Sparse time " << miliseconds << endl;
 
 	vi host_O1(nr * 32);
 	vi host_O2(nr * 32);
@@ -809,7 +852,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < nr; i++)
 		temp_row_ptr[i + 1] += temp_row_ptr[i];
 
-	vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
+	vi order_rows = reorder_rows(temp_row_ptr,temp_col_idx);
 
 	for(int i=0;i<ne;++i){
 		reordered_rows[i] = order_rows[reordered_rows[i]-1] + 1;
