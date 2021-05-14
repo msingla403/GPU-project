@@ -23,6 +23,7 @@ using namespace std;
 #define NUM_BUCKETS 16
 
 #define DEBUG 0
+
 __device__ __host__ int hashFn(int *data, int bsize) {
 
 	int res = bsize;
@@ -181,7 +182,6 @@ class trio {
 		second = b;
 		third = c;
 	}
-
 };
 
 class compare {
@@ -332,7 +332,6 @@ class mkDSU {
 				ans.push_back(ut);
 			}
 		}
-
 		return ans;
 	}
 };
@@ -356,15 +355,20 @@ vi reorder_rows(vi &rowptr, vi &colidx) {
 
 	vi ans = dsu.order_clusters();
 
-	// for(auto it: ans)
-	// {
-	//  cout << it << " ";
-	// }
-	// cout << endl;
-	// return vi(n, 0);
+	if(DEBUG){
+		cout<<"Reorder vector\n";
+
+		for(auto it: ans){
+		 cout << it << " ";
+		}
+		cout << endl;
+		return vi(n, 0);
+	}
+
 	return ans;
 }
 
+// Matrix Multiplication on CPU
 __global__ void MM(int *row_ptr,
 						 int *col_idx,
 						 int *col_val,
@@ -389,6 +393,8 @@ __global__ void MM(int *row_ptr,
 		O[i * K + j] = res;
 	}
 }
+
+// Normal Matrix Multiplication on CPU
 
 __global__ void SPMM(int *tile_row_ptr,
 							int *panel_ptr,
@@ -417,6 +423,7 @@ __global__ void SPMM(int *tile_row_ptr,
 		}
 	}
 }
+
 
 __global__ void find_dense_GPU(int *col_ptr,
 										 int *row_idx,
@@ -464,6 +471,12 @@ ve<vi > find_dense_CPU(vi &col_ptr, vi &row_idx, int nr, int nc) {
 	return result;
 }
 
+/*
+Dividing the rows of sparse matirx in panels
+Each panel is handled by a thread block
+Each row in panel is assigned to a warp
+Dense tiles are moved first to shared memory to prevent multiple global memory access.
+*/
 __global__ void ASPT_dense(int *tile_row_ptr,
 									int *panel_ptr,
 									int *col_idx,
@@ -472,7 +485,9 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 									int *D,
 									int *O) {
 
-	__shared__ int shared_D[8192];
+	// using all of shared memory
+	__shared__ int shared_D[7936];
+	__shared__ int mapped_tiles[256];
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x / 32;
@@ -482,13 +497,24 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 	int global_row = row_panel_id * PANEL_SIZE + row_id;
 	int ptr = panel_ptr[row_panel_id] * PANEL_SIZE + row_id * num_tiles;
 
+	if(row_id==0){
+		for(int i=0;i<256;i+=32){
+			mapped_tiles[i+thread_no]=0;
+		}
+	}
+
+	__syncthreads();
+
 	for (int i = 0; i < num_tiles - 1; ++i) {
 
 		int low = tile_row_ptr[ptr + i];
 		int high = tile_row_ptr[ptr + i + 1];
 
-		if (high > low) {
-			shared_D[col_map[low] * 32 + thread_no] = D[col_idx[low] * 32 + thread_no];
+		int map_idx = col_map[low];
+
+		if (high > low && mapped_tiles[map_idx]==0) {
+			mapped_tiles[map_idx]=1;
+			shared_D[map_idx * 32 + thread_no] = D[col_idx[low] * 32 + thread_no];
 		}
 
 	}
