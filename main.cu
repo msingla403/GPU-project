@@ -33,20 +33,20 @@ int hashFn(int *data, int bsize) {
 	return abs(res);
 }
 
-__global__ void getSig(int *rowptr, 
-						int *colidx, 
-						int *perms, 
-						int *sigs, 
-						int siglen, 
-						int n) {
+__global__ void getSig(int *rowptr,
+							  int *colidx,
+							  int *perms,
+							  int *sigs,
+							  int siglen,
+							  int n) {
 
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	// if(idx == 0)
 	// {
-	// 	for(int i=0; i<n*siglen; i++)
-	// 		printf("%d ", perms[i]);
-	// 	printf("\n");
+	//  for(int i=0; i<n*siglen; i++)
+	//      printf("%d ", perms[i]);
+	//  printf("\n");
 	// }
 
 	if (idx < n) {
@@ -60,17 +60,17 @@ __global__ void getSig(int *rowptr,
 		}
 		// for(int i=0; i<siglen; i++)
 		// {
-		// 	printf("%d %d\n", idx, sigs[idx*siglen + i]);
+		//  printf("%d %d\n", idx, sigs[idx*siglen + i]);
 		// }
 	}
 }
 
-__global__ void getBuckets(int *sigs, 
-							int *res, 
-							int n, 
-							int siglen, 
-							int bsize, 
-							int numbuckets) {
+__global__ void getBuckets(int *sigs,
+									int *res,
+									int n,
+									int siglen,
+									int bsize,
+									int numbuckets) {
 
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -89,11 +89,11 @@ Local Sensitive Hashing
 Given the vectors, the LSH will divide them into buckets suck that similar vectors come in same bucket.
  */
 
-set<pairi > LSH(vi &rowptr, 
-					vi &colidx, 
-					int siglen, 
-					int bsize, 
-					int numbuckets) {
+set<pairi > LSH(vi &rowptr,
+					 vi &colidx,
+					 int siglen,
+					 int bsize,
+					 int numbuckets) {
 
 	int n = rowptr.size() - 1;
 
@@ -131,9 +131,9 @@ set<pairi > LSH(vi &rowptr,
 
 	// for(int i=0; i<n; i++)
 	// {
-	// 	for(int k=0; k<siglen; k++)
-	// 		cout << sigs[i*siglen + k] << " ";
-	// 	cout << endl;
+	//  for(int k=0; k<siglen; k++)
+	//      cout << sigs[i*siglen + k] << " ";
+	//  cout << endl;
 	// }
 	// cout << endl;
 
@@ -357,21 +357,21 @@ vi reordered_rows(vi &rowptr, vi &colidx) {
 
 	// for(auto it: ans)
 	// {
-	// 	cout << it << " ";
+	//  cout << it << " ";
 	// }
 	// cout << endl;
 	// return vi(n, 0);
 	return ans;
 }
 
-__global__ void MM(int *row_ptr, 
-					int *col_idx, 
-					int *col_val, 
-					int *dm, 
-					int *O, 
-					int N, 
-					int M, 
-					int K) {
+__global__ void MM(int *row_ptr,
+						 int *col_idx,
+						 int *col_val,
+						 int *dm,
+						 int *O,
+						 int N,
+						 int M,
+						 int K) {
 
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
 
@@ -389,12 +389,12 @@ __global__ void MM(int *row_ptr,
 	}
 }
 
-__global__ void SPMM(int *tile_row_ptr, 
-						int *panel_ptr, 
-						int *col_idx, 
-						int *col_val, 
-						int *D, 
-						int *O) {
+__global__ void SPMM(int *tile_row_ptr,
+							int *panel_ptr,
+							int *col_idx,
+							int *col_val,
+							int *D,
+							int *O) {
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x / 32;
@@ -417,11 +417,11 @@ __global__ void SPMM(int *tile_row_ptr,
 	}
 }
 
-__global__ void find_dense_GPU(int *col_ptr, 
-								int *row_idx, 
-								int *isdense, 
-								int nr, 
-								int nc) {
+__global__ void find_dense_GPU(int *col_ptr,
+										 int *row_idx,
+										 int *isdense,
+										 int nr,
+										 int nc) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < nc) {
 		int panel_id;
@@ -508,12 +508,12 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 
 }
 
-__global__ void ASPT_sparse(int *tile_row_ptr, 
-								int *panel_ptr, 
-								int *col_idx, 
-								int *col_val, 
-								int *D, 
-								int *O) {
+__global__ void ASPT_sparse(int *tile_row_ptr,
+									 int *panel_ptr,
+									 int *col_idx,
+									 int *col_val,
+									 int *D,
+									 int *O) {
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x / 32;
@@ -535,12 +535,12 @@ __global__ void ASPT_sparse(int *tile_row_ptr,
 
 }
 
-void run_MM(vi &row_ptr, 
-				vi &col_idx, 
-				vi &col_val, 
-				vi &host_DM, 
-				int nr, 
-				int nc, 
+void run_MM(vi &row_ptr,
+				vi &col_idx,
+				vi &col_val,
+				vi &host_DM,
+				int nr,
+				int nc,
 				int ne) {
 	// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
 
@@ -573,21 +573,21 @@ void run_MM(vi &row_ptr,
 
 	// for(int i=0; i<nr; i++)
 	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
+	//  for(int j=0; j<32; j++)
+	//      cout << host_O[32*i + j] << " ";
+	//  cout << endl;
 	// }
 	// cout << endl;
 }
 
-void run_SPMM(vi &tile_row_ptr, 
-				vi &panel_ptr, 
-				vi &col_idx, 
-				vi &col_val, 
-				vi &host_DM, 
-				int nr, 
-				int nc, 
-				int ne) {
+void run_SPMM(vi &tile_row_ptr,
+				  vi &panel_ptr,
+				  vi &col_idx,
+				  vi &col_val,
+				  vi &host_DM,
+				  int nr,
+				  int nc,
+				  int ne) {
 	// trying SPMM with tiling (no reordering)
 	int num_panels = nr / PANEL_SIZE;
 
@@ -623,9 +623,9 @@ void run_SPMM(vi &tile_row_ptr,
 	cudaFree(O);
 	// for(int i=0; i<nr; i++)
 	// {
-	// 	for(int j=0; j<32; j++)
-	// 		cout << host_O[32*i + j] << " ";
-	// 	cout << endl;
+	//  for(int j=0; j<32; j++)
+	//      cout << host_O[32*i + j] << " ";
+	//  cout << endl;
 	// }
 	// cout << endl;
 }
@@ -693,20 +693,20 @@ void run_ASPT(vi &tile_row_ptr,
 	cudaFree(O1);
 	cudaFree(O2);
 	// for (int i = 0; i < nr; i++) {
-	// 	for (int j = 0; j < 32; j++)
-	// 		cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
-	// 	cout << endl;
+	//  for (int j = 0; j < 32; j++)
+	//      cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
+	//  cout << endl;
 	// }
 }
 
-void CSR_reorder_GPU(vi &rows, 
-						vi &cols, 
-						vi &row_ptr, 
-						vi &col_idx, 
-						vi &col_val, 
-						int nr, 
-						int nc, 
-						int ne) {
+void CSR_reorder_GPU(vi &rows,
+							vi &cols,
+							vi &row_ptr,
+							vi &col_idx,
+							vi &col_val,
+							int nr,
+							int nc,
+							int ne) {
 	// // create column wise CSR
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
@@ -722,11 +722,11 @@ void CSR_reorder_GPU(vi &rows,
 		col_ptr[i + 1] += col_ptr[i];
 
 	// for(int i=0; i<=nc; i++)
-	// 	cout << col_ptr[i] << " ";
+	//  cout << col_ptr[i] << " ";
 	// cout <<endl;
 
 	// for(int i=0; i<ne; i++)
-	// 	cout << row_idx[i] << " ";
+	//  cout << row_idx[i] << " ";
 	// cout << endl;
 
 	// find dense tiles now
@@ -767,6 +767,7 @@ void CSR_reorder_GPU(vi &rows,
 }
 
 int main(int argc, char **argv) {
+
 	if (argc < 2)
 		return 1;
 	char *inputfilename = argv[1];
@@ -777,105 +778,285 @@ int main(int argc, char **argv) {
 	fscanf(fp, "%d %d %d", &nr, &nc, &ne);
 
 	int r, c;
+
 	vi rows(ne, 0);
 	vi cols(ne, 0);
+
+	// Reordered rows for Better dense tiles in ASPT
+	vi reordered_rows(ne, 0);
+	vi reordered_cols(ne, 0);
+
 	for (int i = 0; i < ne; i++) {
 		fscanf(fp, "%d %d", &r, &c);
 
 		rows[i] = r;
 		cols[i] = c;
+
+		reordered_rows[i] = rows[i];
+		reordered_cols[i] = cols[i];
 	}
 
-	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
+	thrust::sort_by_key(reordered_rows.begin(), reordered_rows.begin() + ne, reordered_cols.begin());
 
 	vi temp_row_ptr(nr + 1, 0);
 	vi temp_col_idx(ne, 0);
 
 	for (int i = 0; i < ne; i++) {
-		// cout << rows[i] << " " << cols[i] << endl;
-		temp_row_ptr[rows[i]]++;
-		temp_col_idx[i] = cols[i] - 1;
+		temp_row_ptr[reordered_rows[i]]++;
+		temp_col_idx[i] = reordered_cols[i] - 1;
 	}
 
 	for (int i = 0; i < nr; i++)
 		temp_row_ptr[i + 1] += temp_row_ptr[i];
 
-	// cout << "here" << endl;
-	// vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
+	vi order_rows = reordered_rows(temp_row_ptr,temp_col_idx);
 
-	// cout << endl;
-	// for(int i=0;i<ne;++i){
-	// 	// cout << rows[i] << " ";
-	// 	rows[i] = order_rows[rows[i]-1] + 1; 
-	// 	// cout << rows[i] << endl;
+	for(int i=0;i<ne;++i){
+		reordered_rows[i] = order_rows[reordered_rows[i]-1] + 1;
+	}
+
+	//computation for normal ASPT
+	//finding sense tiles 
+
+	// thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
+
+	// cout << "sorted cols" << endl;
+
+	// vi col_ptr(nc + 1, 0);
+	// vi row_idx(ne, 0);
+
+	// for (int i = 0; i < ne; i++) {
+	// 	// cout << cols[i] << " " << rows[i] << endl;
+	// 	col_ptr[cols[i]]++;
+	// 	row_idx[i] = rows[i] - 1;
 	// }
-	// cout << endl;
+
+	// for (int i = 0; i < nc; i++)
+	// 	col_ptr[i + 1] += col_ptr[i];
+
+	// // for(int i=0; i<=nc; i++)
+	// //  cout << col_ptr[i] << " ";
+	// // cout <<endl;
+
+	// // for(int i=0; i<ne; i++)
+	// //  cout << row_idx[i] << " ";
+	// // cout << endl;
+
+	// // find dense tiles now
+	 int num_panels = nr / PANEL_SIZE;
+
+	// ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
+	// int ndensecols = 0;
+	// for (int i = 0; i < num_panels; i++) {
+	// 	ndensecols += dense[i].size();
+	// 	// for(int j=0; j<dense[i].size(); j++)
+	// 	// {
+	// 	//  cout << dense[i][j] << " ";
+	// 	// }
+	// 	// cout << endl;
+	// }
+	// cout << "dense cols # " << ndensecols << endl;
+	// thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
+	// cout << "sorted row wise" << endl;
+
+	// vi row_ptr(nr + 1, 0);
+	// vi col_idx(ne, 0);
+	// vi col_val(ne, 1);
+	// vi col_map(ne, 0);
+
+	// for (int i = 0; i < ne; i++) {
+	// 	// cout << rows[i] << " " << cols[i] << endl;
+	// 	row_ptr[rows[i]]++;
+	// 	col_idx[i] = cols[i] - 1;
+	// }
+
+	// for (int i = 0; i < nr; i++)
+	// 	row_ptr[i + 1] += row_ptr[i];
+
+	// cout << "Reordering columns for ASPT" << endl;
+
+	// vi panel_ptr(num_panels + 1, 0);
+	// vi tile_row_ptr(1, 0);
+
+	// for (int panel_id = 0; panel_id < num_panels; ++panel_id) {
+
+	// 	map<int, int> densecols;
+
+	// 	for (int j = 0; j < dense[panel_id].size(); j++) {
+	// 		densecols[dense[panel_id][j]] = j;
+	// 	}
+
+	// 	panel_ptr[panel_id + 1] = densecols.size() + 1; // one sparse panel
+
+	// 	for (int i = panel_id * PANEL_SIZE; i < (panel_id + 1) * PANEL_SIZE; ++i) {
+	// 		if (i >= nr)
+	// 			break;
+
+	// 		ve<pairi > temp1;
+	// 		ve<pairi > temp2;
+
+	// 		for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+	// 			if (densecols.find(col_idx[k]) == densecols.end()) {
+	// 				temp2.push_back(make_pair(col_idx[k], col_val[k]));
+	// 			} else {
+	// 				temp1.push_back(make_pair(col_idx[k], col_val[k]));
+	// 			}
+	// 		}
+
+	// 		int counter = 0;
+	// 		for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+	// 			if (counter < temp1.size()) // dense columns
+	// 			{
+	// 				col_idx[k] = temp1[counter].f;
+	// 				col_val[k] = temp1[counter].s;
+	// 				col_map[k] = densecols[col_idx[k]];
+	// 			} else   // sparse columns
+	// 			{
+	// 				col_idx[k] = temp2[counter - temp1.size()].f;
+	// 				col_val[k] = temp2[counter - temp1.size()].s;
+	// 				col_map[k] = -1;
+	// 			}
+	// 			++counter;
+	// 		}
+
+	// 		counter = 0;
+	// 		int found = 0;
+
+	// 		for (auto mapel:densecols) {
+	// 			auto el = mapel.f;
+	// 			// cout << el << ' ';
+	// 			found = 0;
+	// 			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+	// 				if (el == col_idx[k]) {
+	// 					found = 1;
+	// 					counter++;
+	// 					break;
+	// 				} else if (el < col_idx[k]) {
+	// 					break;
+	// 				}
+	// 			}
+
+	// 			tile_row_ptr.push_back(found);
+	// 			// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
+	// 		}
+	// 		// cout << endl;
+	// 		tile_row_ptr.push_back(row_ptr[i + 1] - row_ptr[i] - counter);
+	// 	}
+	// 	// densecols.clear();
+	// }
+
+	// for (int i = 0; i < num_panels; i++)
+	// 	panel_ptr[i + 1] += panel_ptr[i];
+
+	// for (int i = 1; i < tile_row_ptr.size(); i++)
+	// 	tile_row_ptr[i] += tile_row_ptr[i - 1];
+
+	// // cout << "row_ptr" << endl;
+	// // for(int i=0; i<=nr; i++)
+	// //  cout << row_ptr[i] << " ";
+	// // cout <<endl;
+
+	// // cout << "col_idx" << endl;
+	// // for(int i=0; i<ne; i++)
+	// //  cout << col_idx[i] << " ";
+	// // cout << endl;
+
+	// // cout << "panel_ptr" << endl;
+	// // for(int i=0; i<= num_panels; i++)
+	// //  cout << panel_ptr[i] << " ";
+	// // cout << endl;
+	// // cout << "tile_row_ptr" << endl;
+	// // for(int i=0; i<tile_row_ptr.size(); i++)
+	// //  cout << tile_row_ptr[i] << " ";
+	// // cout << endl;
+	// // cout << endl;
+
+	// // cout << "dense col mapping" << endl;
+	// // for(int i=0; i<col_map.size(); i++)
+	// //  cout << col_map[i] << " ";
+	// // cout << endl;
+
+
+	// vi host_DM(nc * 32, 1);
+
+	// int *DM;
+	// cudaMalloc(&DM, nc * 32 * sizeof(int));
+	// cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
+	// cout << " multiplying" << endl;
+
+	// // run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 
 
 
-	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
+	// ASPT on reordered rows with better dense tiling expectations
+
+
+	thrust::sort_by_key(reordered_cols.begin(), reordered_cols.begin() + ne, reordered_rows.begin());
+
 	cout << "sorted cols" << endl;
-	vi col_ptr(nc + 1, 0);
-	vi row_idx(ne, 0);
+
+	vi reordered_col_ptr(nc + 1, 0);
+	vi reordered_row_idx(ne, 0);
+
 	for (int i = 0; i < ne; i++) {
 		// cout << cols[i] << " " << rows[i] << endl;
-		col_ptr[cols[i]]++;
-		row_idx[i] = rows[i] - 1;
+		reordered_col_ptr[reordered_cols[i]]++;
+		reordered_row_idx[i] = reordered_rows[i] - 1;
 	}
 
 	for (int i = 0; i < nc; i++)
-		col_ptr[i + 1] += col_ptr[i];
+		reordered_col_ptr[i + 1] += reordered_col_ptr[i];
 
 	// for(int i=0; i<=nc; i++)
-	// 	cout << col_ptr[i] << " ";
+	//  cout << col_ptr[i] << " ";
 	// cout <<endl;
 
 	// for(int i=0; i<ne; i++)
-	// 	cout << row_idx[i] << " ";
+	//  cout << row_idx[i] << " ";
 	// cout << endl;
 
 	// find dense tiles now
-	int num_panels = nr / PANEL_SIZE;
 
-	ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
-	int ndensecols = 0;
+	ve<vi > reordered_dense = find_dense_CPU(reordered_col_ptr, reordered_row_idx, nr, nc);
+	int reordered_ndensecols = 0;
 	for (int i = 0; i < num_panels; i++) {
-		ndensecols += dense[i].size();
-		// for(int j=0; j<dense[i].size(); j++)
-		// {
-		// 	cout << dense[i][j] << " ";
-		// }
-		// cout << endl;
+		reordered_ndensecols += reordered_dense[i].size();
 	}
-	cout << "dense cols # " << ndensecols << endl;
-	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
+
+	cout << "dense cols # " << reordered_ndensecols << endl;
+	thrust::sort_by_key(reordered_rows.begin(), reordered_rows.begin() + ne, reordered_cols.begin());
 	cout << "sorted row wise" << endl;
 
-	vi row_ptr(nr + 1, 0);
-	vi col_idx(ne, 0);
-	vi col_val(ne, 1);
-	vi col_map(ne, 0);
+	vi reordered_row_ptr(nr + 1, 0);
+	vi reordered_col_idx(ne, 0);
+	vi reordered_col_val(ne, 1);
+	vi reordered_col_map(ne, 0);
 
 	for (int i = 0; i < ne; i++) {
 		// cout << rows[i] << " " << cols[i] << endl;
-		row_ptr[rows[i]]++;
-		col_idx[i] = cols[i] - 1;
+		reordered_row_ptr[reordered_rows[i]]++;
+		reordered_col_idx[i] = reordered_cols[i] - 1;
 	}
 
 	for (int i = 0; i < nr; i++)
-		row_ptr[i + 1] += row_ptr[i];
+		reordered_row_ptr[i + 1] += reordered_row_ptr[i];
 
-	cout << "Reordering" << endl;
-	vi panel_ptr(num_panels + 1, 0);
-	vi tile_row_ptr(1, 0);
+	cout << "Reordering columns for ASPT" << endl;
+
+	vi reordered_panel_ptr(num_panels + 1, 0);
+	vi reordered_tile_row_ptr(1, 0);
 
 	for (int panel_id = 0; panel_id < num_panels; ++panel_id) {
-		map<int, int> densecols;
-		for (int j = 0; j < dense[panel_id].size(); j++) {
-			densecols[dense[panel_id][j]] = j;
+
+		map<int, int> reordered_densecols;
+
+		for (int j = 0; j < reordered_dense[panel_id].size(); j++) {
+			reordered_densecols[reordered_dense[panel_id][j]] = j;
 		}
 
-		panel_ptr[panel_id + 1] = densecols.size() + 1; // one sparse panel
+		reordered_panel_ptr[panel_id + 1] = reordered_densecols.size() + 1; // one sparse panel
 
 		for (int i = panel_id * PANEL_SIZE; i < (panel_id + 1) * PANEL_SIZE; ++i) {
 			if (i >= nr)
@@ -883,87 +1064,86 @@ int main(int argc, char **argv) {
 
 			ve<pairi > temp1;
 			ve<pairi > temp2;
-			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-				if (densecols.find(col_idx[k]) == densecols.end()) {
-					temp2.push_back(make_pair(col_idx[k], col_val[k]));
+
+			for (int k = reordered_row_ptr[i]; k < reordered_row_ptr[i + 1]; ++k) {
+				if (reordered_densecols.find(reordered_col_idx[k]) == reordered_densecols.end()) {
+					temp2.push_back(make_pair(reordered_col_idx[k], reordered_col_val[k]));
 				} else {
-					temp1.push_back(make_pair(col_idx[k], col_val[k]));
+					temp1.push_back(make_pair(reordered_col_idx[k], reordered_col_val[k]));
 				}
 			}
 
 			int counter = 0;
-			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+			for (int k = reordered_row_ptr[i]; k < reordered_row_ptr[i + 1]; ++k) {
 				if (counter < temp1.size()) // dense columns
 				{
-					col_idx[k] = temp1[counter].f;
-					col_val[k] = temp1[counter].s;
-					col_map[k] = densecols[col_idx[k]];
+					reordered_col_idx[k] = temp1[counter].f;
+					reordered_col_val[k] = temp1[counter].s;
+					reordered_col_map[k] = reordered_densecols[reordered_col_idx[k]];
 				} else   // sparse columns
 				{
-					col_idx[k] = temp2[counter - temp1.size()].f;
-					col_val[k] = temp2[counter - temp1.size()].s;
-					col_map[k] = -1;
+					reordered_col_idx[k] = temp2[counter - temp1.size()].f;
+					reordered_col_val[k] = temp2[counter - temp1.size()].s;
+					reordered_col_map[k] = -1;
 				}
 				++counter;
 			}
 
 			counter = 0;
 			int found = 0;
-			for (auto mapel:densecols) {
+
+			for (auto mapel:reordered_densecols) {
 				auto el = mapel.f;
 				// cout << el << ' ';
 				found = 0;
-				for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-					if (el == col_idx[k]) {
+				for (int k = reordered_row_ptr[i]; k < reordered_row_ptr[i + 1]; ++k) {
+					if (el == reordered_col_idx[k]) {
 						found = 1;
 						counter++;
 						break;
-					} else if (el < col_idx[k]) {
+					} else if (el < reordered_col_idx[k]) {
 						break;
 					}
 				}
 
-				tile_row_ptr.push_back(found);
-
+				reordered_tile_row_ptr.push_back(found);
 				// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
 			}
 			// cout << endl;
-			tile_row_ptr.push_back(row_ptr[i + 1] - row_ptr[i] - counter);
-
+			reordered_tile_row_ptr.push_back(reordered_row_ptr[i + 1] - reordered_row_ptr[i] - counter);
 		}
-
 		// densecols.clear();
 	}
 
 	for (int i = 0; i < num_panels; i++)
-		panel_ptr[i + 1] += panel_ptr[i];
+		reordered_panel_ptr[i + 1] += reordered_panel_ptr[i];
 
-	for (int i = 1; i < tile_row_ptr.size(); i++)
-		tile_row_ptr[i] += tile_row_ptr[i - 1];
+	for (int i = 1; i < reordered_tile_row_ptr.size(); i++)
+		reordered_tile_row_ptr[i] += reordered_tile_row_ptr[i - 1];
 
 	// cout << "row_ptr" << endl;
 	// for(int i=0; i<=nr; i++)
-	// 	cout << row_ptr[i] << " ";
+	//  cout << row_ptr[i] << " ";
 	// cout <<endl;
 
 	// cout << "col_idx" << endl;
 	// for(int i=0; i<ne; i++)
-	// 	cout << col_idx[i] << " ";
+	//  cout << col_idx[i] << " ";
 	// cout << endl;
 
 	// cout << "panel_ptr" << endl;
 	// for(int i=0; i<= num_panels; i++)
-	// 	cout << panel_ptr[i] << " ";
+	//  cout << panel_ptr[i] << " ";
 	// cout << endl;
 	// cout << "tile_row_ptr" << endl;
 	// for(int i=0; i<tile_row_ptr.size(); i++)
-	// 	cout << tile_row_ptr[i] << " ";
+	//  cout << tile_row_ptr[i] << " ";
 	// cout << endl;
 	// cout << endl;
 
 	// cout << "dense col mapping" << endl;
 	// for(int i=0; i<col_map.size(); i++)
-	// 	cout << col_map[i] << " ";
+	//  cout << col_map[i] << " ";
 	// cout << endl;
 
 
@@ -973,9 +1153,10 @@ int main(int argc, char **argv) {
 	cudaMalloc(&DM, nc * 32 * sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
 	cout << " multiplying" << endl;
-	run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
+
+	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_SPMM(reordered_tile_row_ptr, reordered_panel_ptr, reordered_col_idx, reordered_col_val, host_DM, nr, nc, ne);
+	run_ASPT(reordered_tile_row_ptr, reordered_panel_ptr, reordered_col_idx, reordered_col_val, reordered_col_map, host_DM, nr, nc, ne);
 
 }
 
