@@ -992,6 +992,8 @@ int main(int argc, char **argv) {
 
 	// ASPT on reordered rows with better dense tiling expectations
 
+	cout<<"Starting computation on reordered rows\n";
+
 
 	thrust::sort_by_key(reordered_cols.begin(), reordered_cols.begin() + ne, reordered_rows.begin());
 
