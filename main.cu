@@ -25,6 +25,7 @@ using namespace std;
 __device__ __host__
 
 int hashFn(int *data, int bsize) {
+
 	int res = bsize;
 	for (int i = 0; i < bsize; i++) {
 		res ^= data[i] + 0x9e3779b9 + (res << 6) + (res >> 2);
@@ -32,7 +33,13 @@ int hashFn(int *data, int bsize) {
 	return abs(res);
 }
 
-__global__ void getSig(int *rowptr, int *colidx, int *perms, int *sigs, int siglen, int n) {
+__global__ void getSig(int *rowptr, 
+						int *colidx, 
+						int *perms, 
+						int *sigs, 
+						int siglen, 
+						int n) {
+
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	// if(idx == 0)
@@ -58,7 +65,13 @@ __global__ void getSig(int *rowptr, int *colidx, int *perms, int *sigs, int sigl
 	}
 }
 
-__global__ void getBuckets(int *sigs, int *res, int n, int siglen, int bsize, int numbuckets) {
+__global__ void getBuckets(int *sigs, 
+							int *res, 
+							int n, 
+							int siglen, 
+							int bsize, 
+							int numbuckets) {
+
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx < n) {
@@ -71,7 +84,12 @@ __global__ void getBuckets(int *sigs, int *res, int n, int siglen, int bsize, in
 }
 
 // siglen % bsize ==0 ;  siglen anything.. 
-set<pairi > LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets) {
+set<pairi > LSH(vi &rowptr, 
+					vi &colidx, 
+					int siglen, 
+					int bsize, 
+					int numbuckets) {
+
 	int n = rowptr.size() - 1;
 
 	int hperms[n * siglen];
@@ -165,6 +183,7 @@ class trio {
 class compare {
  public:
 	bool operator()(const trio &a, const trio &b) const {
+
 		if (a.f == b.f) {
 			if (a.s == b.s)
 				return a.t < b.t;
@@ -175,6 +194,7 @@ class compare {
 };
 
 float J(vi &rowptr, vi &colidx, int i, int j) {
+
 	float ans = 0.0;
 	int count = 0;
 
@@ -334,7 +354,15 @@ vi reordered_rows(vi &rowptr, vi &colidx) {
 	return ans;
 }
 
-__global__ void MM(int *row_ptr, int *col_idx, int *col_val, int *dm, int *O, int N, int M, int K) {
+__global__ void MM(int *row_ptr, 
+					int *col_idx, 
+					int *col_val, 
+					int *dm, 
+					int *O, 
+					int N, 
+					int M, 
+					int K) {
+
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
 
 	if (idx < N * K) {
@@ -348,11 +376,15 @@ __global__ void MM(int *row_ptr, int *col_idx, int *col_val, int *dm, int *O, in
 			res += col_val[k] * temp;
 		}
 		O[i * K + j] = res;
-		// printf("%d %d %d\n", i, j, res);
 	}
 }
 
-__global__ void SPMM(int *tile_row_ptr, int *panel_ptr, int *col_idx, int *col_val, int *D, int *O) {
+__global__ void SPMM(int *tile_row_ptr, 
+						int *panel_ptr, 
+						int *col_idx, 
+						int *col_val, 
+						int *D, 
+						int *O) {
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x / 32;
@@ -375,7 +407,11 @@ __global__ void SPMM(int *tile_row_ptr, int *panel_ptr, int *col_idx, int *col_v
 	}
 }
 
-__global__ void find_dense_GPU(int *col_ptr, int *row_idx, int *isdense, int nr, int nc) {
+__global__ void find_dense_GPU(int *col_ptr, 
+								int *row_idx, 
+								int *isdense, 
+								int nr, 
+								int nc) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < nc) {
 		int panel_id;
@@ -462,7 +498,12 @@ __global__ void ASPT_dense(int *tile_row_ptr,
 
 }
 
-__global__ void ASPT_sparse(int *tile_row_ptr, int *panel_ptr, int *col_idx, int *col_val, int *D, int *O) {
+__global__ void ASPT_sparse(int *tile_row_ptr, 
+								int *panel_ptr, 
+								int *col_idx, 
+								int *col_val, 
+								int *D, 
+								int *O) {
 
 	int row_panel_id = blockIdx.x;
 	int row_id = threadIdx.x / 32;
@@ -484,7 +525,13 @@ __global__ void ASPT_sparse(int *tile_row_ptr, int *panel_ptr, int *col_idx, int
 
 }
 
-void run_MM(vi &row_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne) {
+void run_MM(vi &row_ptr, 
+				vi &col_idx, 
+				vi &col_val, 
+				vi &host_DM, 
+				int nr, 
+				int nc, 
+				int ne) {
 	// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
 
 	int *drow_ptr;
@@ -523,7 +570,14 @@ void run_MM(vi &row_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, 
 	// cout << endl;
 }
 
-void run_SPMM(vi &tile_row_ptr, vi &panel_ptr, vi &col_idx, vi &col_val, vi &host_DM, int nr, int nc, int ne) {
+void run_SPMM(vi &tile_row_ptr, 
+				vi &panel_ptr, 
+				vi &col_idx, 
+				vi &col_val, 
+				vi &host_DM, 
+				int nr, 
+				int nc, 
+				int ne) {
 	// trying SPMM with tiling (no reordering)
 	int num_panels = nr / PANEL_SIZE;
 
@@ -635,7 +689,14 @@ void run_ASPT(vi &tile_row_ptr,
 	// }
 }
 
-void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, int nr, int nc, int ne) {
+void CSR_reorder_GPU(vi &rows, 
+						vi &cols, 
+						vi &row_ptr, 
+						vi &col_idx, 
+						vi &col_val, 
+						int nr, 
+						int nc, 
+						int ne) {
 	// // create column wise CSR
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
