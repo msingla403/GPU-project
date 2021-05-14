@@ -19,10 +19,12 @@ using namespace std;
 #define DENSE_THRESHOLD 5
 
 #define SIGLEN 10
-#define BAND_SIZE 10 
+#define BAND_SIZE 10
 #define NUM_BUCKETS 16
 
-__device__ __host__ int hashFn(int *data, int bsize) {
+__device__ __host__
+
+int hashFn(int *data, int bsize) {
 	int res = bsize;
 	for (int i = 0; i < bsize; i++) {
 		res ^= data[i] + 0x9e3779b9 + (res << 6) + (res >> 2);
@@ -140,17 +142,17 @@ set<pairi > LSH(vi &rowptr, vi &colidx, int siglen, int bsize, int numbuckets) {
 	return result;
 }
 
-
 class trio {
  public:
-	float first; 
+	float first;
+
 	int second, third;
 
 	void print() {
 		cout << first << " " << second << " " << third << endl;
 	}
 
-	trio(){}
+	trio() {}
 
 	trio(int a, int b, int c) {
 		first = a;
@@ -159,146 +161,145 @@ class trio {
 	}
 
 };
+
 class compare {
-public:
-   bool operator()(const trio &a, const trio &b) const {
-	   if (a.f == b.f){
-		   if(a.s==b.s)
-			   return a.t<b.t;
-		   return a.s<b.s;
-	   }
-	   return a.f > b.f;
-   }
+ public:
+	bool operator()(const trio &a, const trio &b) const {
+		if (a.f == b.f) {
+			if (a.s == b.s)
+				return a.t < b.t;
+			return a.s < b.s;
+		}
+		return a.f > b.f;
+	}
 };
 
-float J(vi &rowptr, vi &colidx, int i, int j){
+float J(vi &rowptr, vi &colidx, int i, int j) {
 	float ans = 0.0;
-	int count=0;
+	int count = 0;
 
-	set<int>s;
+	set<int> s;
 
-	for(int k=rowptr[i];k<rowptr[i+1];++k){
+	for (int k = rowptr[i]; k < rowptr[i + 1]; ++k) {
 		s.insert(colidx[k]);
 		count++;
 	}
 
-	for(int k=rowptr[j];k<rowptr[j+1];++k){
-		if(s.find(colidx[k])!=s.end()){
+	for (int k = rowptr[j]; k < rowptr[j + 1]; ++k) {
+		if (s.find(colidx[k]) != s.end()) {
 			ans++;
-		}
-		else{
+		} else {
 			count++;
 		}
 	}
 
 	// cout <<"J " <<  ans/count << endl;
-	return ans/count;
+	return ans / count;
 }
 
-class mkDSU{
+class mkDSU {
  public:
-	vector<int>id,size,deleted;
-	int nclusters,threshold_size, n;
+	vector<int> id, size, deleted;
 
-	mkDSU(int n,int threshold){
+	int nclusters, threshold_size, n;
+
+	mkDSU(int n, int threshold) {
 		id.resize(n);
 		// cout << "DSU " << n << endl;
 		size.resize(n);
 		deleted.resize(n);
 
-		for(int i=0; i<n; i++){
-			id[i]=i;
-			size[i]=1;
-			deleted[i]=0;
+		for (int i = 0; i < n; i++) {
+			id[i] = i;
+			size[i] = 1;
+			deleted[i] = 0;
 		}
-		nclusters=n-1;
-		threshold_size=threshold;
+		nclusters = n - 1;
+		threshold_size = threshold;
 		this->n = n;
 	}
 
-	int find(int a){
-		int p=a,t;
-		while(id[p]!=p)
-			p=id[p];
+	int find(int a) {
+		int p = a, t;
+		while (id[p] != p)
+			p = id[p];
 
-		while(p!=a){
-			t=id[a];
-			id[a]=p;
-			a=t;
+		while (p != a) {
+			t = id[a];
+			id[a] = p;
+			a = t;
 		}
 		return a;
 	}
 
-	void union_(set<pairi>& candidate_pairs, vi &rowptr, vi &colidx){
+	void union_(set<pairi > &candidate_pairs, vi &rowptr, vi &colidx) {
 
-		set<trio,compare> sim_queue;
+		set<trio, compare> sim_queue;
 
-		for(auto it:candidate_pairs)
-			sim_queue.insert(trio(J(rowptr,colidx,it.f,it.s), it.f, it.s));
+		for (auto it:candidate_pairs)
+			sim_queue.insert(trio(J(rowptr, colidx, it.f, it.s), it.f, it.s));
 
-		while(sim_queue.size() && nclusters>0){
+		while (sim_queue.size() && nclusters > 0) {
 			auto it = sim_queue.begin();
-			trio temp =  *it;
+			trio temp = *it;
 			sim_queue.erase(it);
 
 			int i = temp.s;
 			int j = temp.t;
 
-			if(i==id[i] && j==id[j]){
-				if(deleted[i] || deleted[j])
+			if (i == id[i] && j == id[j]) {
+				if (deleted[i] || deleted[j])
 					continue;
 
-				if(size[i]<size[j]){
+				if (size[i] < size[j]) {
 					id[i] = j;
 					nclusters--;
 
 					size[j] += size[i];
 
-					if(size[j]>=threshold_size){
-						deleted[j]=true;
+					if (size[j] >= threshold_size) {
+						deleted[j] = true;
 						nclusters--;
 					}
-				}
-				else{
+				} else {
 					id[j] = i;
 					nclusters--;
 
 					size[i] += size[j];
 
-					if(size[i]>=threshold_size){
+					if (size[i] >= threshold_size) {
 						deleted[i] = true;
 						nclusters--;
 					}
 				}
-			}
-			else{ 
+			} else {
 
 				int c1 = find(temp.s);
 				int c2 = find(temp.t);
 				// cout << "found " << c1 << ' ' << c2 << endl;
-				if(deleted[c1] || deleted[c2] || c1==c2)
+				if (deleted[c1] || deleted[c2] || c1 == c2)
 					continue;
 
-				if(candidate_pairs.find({temp.s,temp.t})==candidate_pairs.end()){
-					
-					sim_queue.insert(trio(J(rowptr, colidx,c1,c2),min(c1,c2),max(c1,c2)));
-					candidate_pairs.insert({min(c1,c2),max(c1,c2)});
+				if (candidate_pairs.find({temp.s, temp.t}) == candidate_pairs.end()) {
+
+					sim_queue.insert(trio(J(rowptr, colidx, c1, c2), min(c1, c2), max(c1, c2)));
+					candidate_pairs.insert({min(c1, c2), max(c1, c2)});
 				}
 			}
 		}
 	}
 
-	vi order_clusters(){
-		map<int,vi> clusters;
+	vi order_clusters() {
+		map<int, vi > clusters;
 		cout << n << endl;
-		for(int i=0;i<n;++i){
+		for (int i = 0; i < n; ++i) {
 			clusters[find(i)].push_back(i);
 		}
 
 		vi ans;
 
-		for(auto it:clusters){
-			for(auto ut:it.s){
+		for (auto it:clusters) {
+			for (auto ut:it.s) {
 				ans.push_back(ut);
 			}
 		}
@@ -307,24 +308,20 @@ class mkDSU{
 	}
 };
 
+vi reordered_rows(vi &rowptr, vi &colidx) {
 
-
-
-vi reordered_rows(vi &rowptr, vi &colidx){
-	
 	int n = rowptr.size() - 1;
 
-	set<pairi> candidate_pairs = LSH(rowptr,colidx,SIGLEN, BAND_SIZE, NUM_BUCKETS);
+	set<pairi > candidate_pairs = LSH(rowptr, colidx, SIGLEN, BAND_SIZE, NUM_BUCKETS);
 
 	// cout << "here pairs" << endl;
 	cout << candidate_pairs.size() << endl;
-	for(auto it:candidate_pairs)
-	{
+	for (auto it:candidate_pairs) {
 		cout << it.f << " " << it.s << endl;
 	}
-	mkDSU dsu(n, 5*PANEL_SIZE);
+	mkDSU dsu(n, 5 * PANEL_SIZE);
 	cout << n << endl;
-	dsu.union_(candidate_pairs,rowptr,colidx);
+	dsu.union_(candidate_pairs, rowptr, colidx);
 
 	vi ans = dsu.order_clusters();
 
@@ -336,11 +333,6 @@ vi reordered_rows(vi &rowptr, vi &colidx){
 	// return vi(n, 0);
 	return ans;
 }
-
-
-
-
-
 
 __global__ void MM(int *row_ptr, int *col_idx, int *col_val, int *dm, int *O, int N, int M, int K) {
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -645,19 +637,18 @@ void run_ASPT(vi &tile_row_ptr,
 
 void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, int nr, int nc, int ne) {
 	// // create column wise CSR
-	thrust::sort_by_key(cols.begin(), cols.begin()+ne, rows.begin());
+	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
-	vi col_ptr(nc+1, 0);
+	vi col_ptr(nc + 1, 0);
 	vi row_idx(ne, 0);
-	for(int i=0; i<ne; i++)
-	{
+	for (int i = 0; i < ne; i++) {
 		// cout << cols[i] << " " << rows[i] << endl;
 		col_ptr[cols[i]]++;
-		row_idx[i] = rows[i]-1;
+		row_idx[i] = rows[i] - 1;
 	}
 
-	for(int i=0; i<nc; i++)
-		col_ptr[i+1] += col_ptr[i];
+	for (int i = 0; i < nc; i++)
+		col_ptr[i + 1] += col_ptr[i];
 
 	// for(int i=0; i<=nc; i++)
 	// 	cout << col_ptr[i] << " ";
@@ -668,36 +659,34 @@ void CSR_reorder_GPU(vi &rows, vi &cols, vi &row_ptr, vi &col_idx, vi &col_val, 
 	// cout << endl;
 
 	// find dense tiles now
-	int num_panels = nr/PANEL_SIZE;
-	int thr = num_panels*nc;
+	int num_panels = nr / PANEL_SIZE;
+	int thr = num_panels * nc;
 	cout << "tiles - " << thr << endl;
 
 	int *dcol_ptr;
 	int *drow_idx;
 	int *is_dense;
-	cudaMalloc(&dcol_ptr, (nc+1)*sizeof(int));
-	cudaMalloc(&drow_idx, ne*sizeof(int));
-	cudaMalloc(&is_dense, thr*sizeof(int));
+	cudaMalloc(&dcol_ptr, (nc + 1) * sizeof(int));
+	cudaMalloc(&drow_idx, ne * sizeof(int));
+	cudaMalloc(&is_dense, thr * sizeof(int));
 
-	cudaMemcpy(dcol_ptr, &col_ptr[0], (nc+1)*sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(drow_idx, &row_idx[0], ne*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dcol_ptr, &col_ptr[0], (nc + 1) * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(drow_idx, &row_idx[0], ne * sizeof(int), cudaMemcpyHostToDevice);
 
-	find_dense_GPU <<<(nc + 1023)/1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
+	find_dense_GPU <<<(nc + 1023) / 1024, 1024>>>(dcol_ptr, drow_idx, is_dense, nr, nc);
 
 	vi isdense(thr);
-	cudaMemcpy(&isdense[0], is_dense, thr*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&isdense[0], is_dense, thr * sizeof(int), cudaMemcpyDeviceToHost);
 	cudaFree(dcol_ptr);
 	cudaFree(drow_idx);
 	cudaFree(is_dense);
 
 	int total = 0;
-	for(int i=0; i<num_panels; i++)
-	{
-		for(int j=0; j<nc; j++)
-		{
+	for (int i = 0; i < num_panels; i++) {
+		for (int j = 0; j < nc; j++) {
 			// cout << isdense[i*nc + j] << " ";
-			if(isdense[i*nc+j])
-				total ++;
+			if (isdense[i * nc + j])
+				total++;
 		}
 		// cout << endl;
 	}
@@ -746,12 +735,12 @@ int main(int argc, char **argv) {
 	// cout << endl;
 	// for(int i=0;i<ne;++i){
 	// 	// cout << rows[i] << " ";
- 	// 	rows[i] = order_rows[rows[i]-1] + 1; 
+	// 	rows[i] = order_rows[rows[i]-1] + 1; 
 	// 	// cout << rows[i] << endl;
 	// }
 	// cout << endl;
-	
-	
+
+
 
 	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 	cout << "sorted cols" << endl;
@@ -778,9 +767,8 @@ int main(int argc, char **argv) {
 	int num_panels = nr / PANEL_SIZE;
 
 	ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
-	int ndensecols=0;
-	for(int i=0; i<num_panels; i++)
-	{
+	int ndensecols = 0;
+	for (int i = 0; i < num_panels; i++) {
 		ndensecols += dense[i].size();
 		// for(int j=0; j<dense[i].size(); j++)
 		// {
