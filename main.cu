@@ -818,175 +818,175 @@ int main(int argc, char **argv) {
 	//computation for normal ASPT
 	//finding sense tiles 
 
-	// thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
+	thrust::sort_by_key(cols.begin(), cols.begin() + ne, rows.begin());
 
-	// cout << "sorted cols" << endl;
+	cout << "sorted cols" << endl;
 
-	// vi col_ptr(nc + 1, 0);
-	// vi row_idx(ne, 0);
+	vi col_ptr(nc + 1, 0);
+	vi row_idx(ne, 0);
 
-	// for (int i = 0; i < ne; i++) {
-	// 	// cout << cols[i] << " " << rows[i] << endl;
-	// 	col_ptr[cols[i]]++;
-	// 	row_idx[i] = rows[i] - 1;
-	// }
+	for (int i = 0; i < ne; i++) {
+		// cout << cols[i] << " " << rows[i] << endl;
+		col_ptr[cols[i]]++;
+		row_idx[i] = rows[i] - 1;
+	}
 
-	// for (int i = 0; i < nc; i++)
-	// 	col_ptr[i + 1] += col_ptr[i];
+	for (int i = 0; i < nc; i++)
+		col_ptr[i + 1] += col_ptr[i];
 
-	// // for(int i=0; i<=nc; i++)
-	// //  cout << col_ptr[i] << " ";
-	// // cout <<endl;
+	// for(int i=0; i<=nc; i++)
+	//  cout << col_ptr[i] << " ";
+	// cout <<endl;
 
-	// // for(int i=0; i<ne; i++)
-	// //  cout << row_idx[i] << " ";
-	// // cout << endl;
+	// for(int i=0; i<ne; i++)
+	//  cout << row_idx[i] << " ";
+	// cout << endl;
 
-	// // find dense tiles now
+	// find dense tiles now
 	 int num_panels = nr / PANEL_SIZE;
 
-	// ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
-	// int ndensecols = 0;
-	// for (int i = 0; i < num_panels; i++) {
-	// 	ndensecols += dense[i].size();
-	// 	// for(int j=0; j<dense[i].size(); j++)
-	// 	// {
-	// 	//  cout << dense[i][j] << " ";
-	// 	// }
-	// 	// cout << endl;
-	// }
-	// cout << "dense cols # " << ndensecols << endl;
-	// thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
-	// cout << "sorted row wise" << endl;
+	ve<vi > dense = find_dense_CPU(col_ptr, row_idx, nr, nc);
+	int ndensecols = 0;
+	for (int i = 0; i < num_panels; i++) {
+		ndensecols += dense[i].size();
+		// for(int j=0; j<dense[i].size(); j++)
+		// {
+		//  cout << dense[i][j] << " ";
+		// }
+		// cout << endl;
+	}
+	cout << "dense cols # " << ndensecols << endl;
+	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
+	cout << "sorted row wise" << endl;
 
-	// vi row_ptr(nr + 1, 0);
-	// vi col_idx(ne, 0);
-	// vi col_val(ne, 1);
-	// vi col_map(ne, 0);
+	vi row_ptr(nr + 1, 0);
+	vi col_idx(ne, 0);
+	vi col_val(ne, 1);
+	vi col_map(ne, 0);
 
-	// for (int i = 0; i < ne; i++) {
-	// 	// cout << rows[i] << " " << cols[i] << endl;
-	// 	row_ptr[rows[i]]++;
-	// 	col_idx[i] = cols[i] - 1;
-	// }
+	for (int i = 0; i < ne; i++) {
+		// cout << rows[i] << " " << cols[i] << endl;
+		row_ptr[rows[i]]++;
+		col_idx[i] = cols[i] - 1;
+	}
 
-	// for (int i = 0; i < nr; i++)
-	// 	row_ptr[i + 1] += row_ptr[i];
+	for (int i = 0; i < nr; i++)
+		row_ptr[i + 1] += row_ptr[i];
 
-	// cout << "Reordering columns for ASPT" << endl;
+	cout << "Reordering columns for ASPT" << endl;
 
-	// vi panel_ptr(num_panels + 1, 0);
-	// vi tile_row_ptr(1, 0);
+	vi panel_ptr(num_panels + 1, 0);
+	vi tile_row_ptr(1, 0);
 
-	// for (int panel_id = 0; panel_id < num_panels; ++panel_id) {
+	for (int panel_id = 0; panel_id < num_panels; ++panel_id) {
 
-	// 	map<int, int> densecols;
+		map<int, int> densecols;
 
-	// 	for (int j = 0; j < dense[panel_id].size(); j++) {
-	// 		densecols[dense[panel_id][j]] = j;
-	// 	}
+		for (int j = 0; j < dense[panel_id].size(); j++) {
+			densecols[dense[panel_id][j]] = j;
+		}
 
-	// 	panel_ptr[panel_id + 1] = densecols.size() + 1; // one sparse panel
+		panel_ptr[panel_id + 1] = densecols.size() + 1; // one sparse panel
 
-	// 	for (int i = panel_id * PANEL_SIZE; i < (panel_id + 1) * PANEL_SIZE; ++i) {
-	// 		if (i >= nr)
-	// 			break;
+		for (int i = panel_id * PANEL_SIZE; i < (panel_id + 1) * PANEL_SIZE; ++i) {
+			if (i >= nr)
+				break;
 
-	// 		ve<pairi > temp1;
-	// 		ve<pairi > temp2;
+			ve<pairi > temp1;
+			ve<pairi > temp2;
 
-	// 		for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-	// 			if (densecols.find(col_idx[k]) == densecols.end()) {
-	// 				temp2.push_back(make_pair(col_idx[k], col_val[k]));
-	// 			} else {
-	// 				temp1.push_back(make_pair(col_idx[k], col_val[k]));
-	// 			}
-	// 		}
+			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+				if (densecols.find(col_idx[k]) == densecols.end()) {
+					temp2.push_back(make_pair(col_idx[k], col_val[k]));
+				} else {
+					temp1.push_back(make_pair(col_idx[k], col_val[k]));
+				}
+			}
 
-	// 		int counter = 0;
-	// 		for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-	// 			if (counter < temp1.size()) // dense columns
-	// 			{
-	// 				col_idx[k] = temp1[counter].f;
-	// 				col_val[k] = temp1[counter].s;
-	// 				col_map[k] = densecols[col_idx[k]];
-	// 			} else   // sparse columns
-	// 			{
-	// 				col_idx[k] = temp2[counter - temp1.size()].f;
-	// 				col_val[k] = temp2[counter - temp1.size()].s;
-	// 				col_map[k] = -1;
-	// 			}
-	// 			++counter;
-	// 		}
+			int counter = 0;
+			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+				if (counter < temp1.size()) // dense columns
+				{
+					col_idx[k] = temp1[counter].f;
+					col_val[k] = temp1[counter].s;
+					col_map[k] = densecols[col_idx[k]];
+				} else   // sparse columns
+				{
+					col_idx[k] = temp2[counter - temp1.size()].f;
+					col_val[k] = temp2[counter - temp1.size()].s;
+					col_map[k] = -1;
+				}
+				++counter;
+			}
 
-	// 		counter = 0;
-	// 		int found = 0;
+			counter = 0;
+			int found = 0;
 
-	// 		for (auto mapel:densecols) {
-	// 			auto el = mapel.f;
-	// 			// cout << el << ' ';
-	// 			found = 0;
-	// 			for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-	// 				if (el == col_idx[k]) {
-	// 					found = 1;
-	// 					counter++;
-	// 					break;
-	// 				} else if (el < col_idx[k]) {
-	// 					break;
-	// 				}
-	// 			}
+			for (auto mapel:densecols) {
+				auto el = mapel.f;
+				// cout << el << ' ';
+				found = 0;
+				for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
+					if (el == col_idx[k]) {
+						found = 1;
+						counter++;
+						break;
+					} else if (el < col_idx[k]) {
+						break;
+					}
+				}
 
-	// 			tile_row_ptr.push_back(found);
-	// 			// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
-	// 		}
-	// 		// cout << endl;
-	// 		tile_row_ptr.push_back(row_ptr[i + 1] - row_ptr[i] - counter);
-	// 	}
-	// 	// densecols.clear();
-	// }
+				tile_row_ptr.push_back(found);
+				// cout << el << " " << tile_row_ptr[tile_row_ptr.size()-1] << found << endl;
+			}
+			// cout << endl;
+			tile_row_ptr.push_back(row_ptr[i + 1] - row_ptr[i] - counter);
+		}
+		// densecols.clear();
+	}
 
-	// for (int i = 0; i < num_panels; i++)
-	// 	panel_ptr[i + 1] += panel_ptr[i];
+	for (int i = 0; i < num_panels; i++)
+		panel_ptr[i + 1] += panel_ptr[i];
 
-	// for (int i = 1; i < tile_row_ptr.size(); i++)
-	// 	tile_row_ptr[i] += tile_row_ptr[i - 1];
+	for (int i = 1; i < tile_row_ptr.size(); i++)
+		tile_row_ptr[i] += tile_row_ptr[i - 1];
 
-	// // cout << "row_ptr" << endl;
-	// // for(int i=0; i<=nr; i++)
-	// //  cout << row_ptr[i] << " ";
-	// // cout <<endl;
+	// cout << "row_ptr" << endl;
+	// for(int i=0; i<=nr; i++)
+	//  cout << row_ptr[i] << " ";
+	// cout <<endl;
 
-	// // cout << "col_idx" << endl;
-	// // for(int i=0; i<ne; i++)
-	// //  cout << col_idx[i] << " ";
-	// // cout << endl;
+	// cout << "col_idx" << endl;
+	// for(int i=0; i<ne; i++)
+	//  cout << col_idx[i] << " ";
+	// cout << endl;
 
-	// // cout << "panel_ptr" << endl;
-	// // for(int i=0; i<= num_panels; i++)
-	// //  cout << panel_ptr[i] << " ";
-	// // cout << endl;
-	// // cout << "tile_row_ptr" << endl;
-	// // for(int i=0; i<tile_row_ptr.size(); i++)
-	// //  cout << tile_row_ptr[i] << " ";
-	// // cout << endl;
-	// // cout << endl;
+	// cout << "panel_ptr" << endl;
+	// for(int i=0; i<= num_panels; i++)
+	//  cout << panel_ptr[i] << " ";
+	// cout << endl;
+	// cout << "tile_row_ptr" << endl;
+	// for(int i=0; i<tile_row_ptr.size(); i++)
+	//  cout << tile_row_ptr[i] << " ";
+	// cout << endl;
+	// cout << endl;
 
-	// // cout << "dense col mapping" << endl;
-	// // for(int i=0; i<col_map.size(); i++)
-	// //  cout << col_map[i] << " ";
-	// // cout << endl;
+	// cout << "dense col mapping" << endl;
+	// for(int i=0; i<col_map.size(); i++)
+	//  cout << col_map[i] << " ";
+	// cout << endl;
 
 
-	// vi host_DM(nc * 32, 1);
+	vi host_DM(nc * 32, 1);
 
-	// int *DM;
-	// cudaMalloc(&DM, nc * 32 * sizeof(int));
-	// cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
-	// cout << " multiplying" << endl;
+	int *DM;
+	cudaMalloc(&DM, nc * 32 * sizeof(int));
+	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
+	cout << " multiplying" << endl;
 
-	// // run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
-	// run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
+	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
+	run_ASPT(tile_row_ptr, panel_ptr, col_idx, col_val, col_map, host_DM, nr, nc, ne);
 
 
 
@@ -1008,14 +1008,6 @@ int main(int argc, char **argv) {
 
 	for (int i = 0; i < nc; i++)
 		reordered_col_ptr[i + 1] += reordered_col_ptr[i];
-
-	// for(int i=0; i<=nc; i++)
-	//  cout << col_ptr[i] << " ";
-	// cout <<endl;
-
-	// for(int i=0; i<ne; i++)
-	//  cout << row_idx[i] << " ";
-	// cout << endl;
 
 	// find dense tiles now
 
@@ -1120,31 +1112,6 @@ int main(int argc, char **argv) {
 
 	for (int i = 1; i < reordered_tile_row_ptr.size(); i++)
 		reordered_tile_row_ptr[i] += reordered_tile_row_ptr[i - 1];
-
-	// cout << "row_ptr" << endl;
-	// for(int i=0; i<=nr; i++)
-	//  cout << row_ptr[i] << " ";
-	// cout <<endl;
-
-	// cout << "col_idx" << endl;
-	// for(int i=0; i<ne; i++)
-	//  cout << col_idx[i] << " ";
-	// cout << endl;
-
-	// cout << "panel_ptr" << endl;
-	// for(int i=0; i<= num_panels; i++)
-	//  cout << panel_ptr[i] << " ";
-	// cout << endl;
-	// cout << "tile_row_ptr" << endl;
-	// for(int i=0; i<tile_row_ptr.size(); i++)
-	//  cout << tile_row_ptr[i] << " ";
-	// cout << endl;
-	// cout << endl;
-
-	// cout << "dense col mapping" << endl;
-	// for(int i=0; i<col_map.size(); i++)
-	//  cout << col_map[i] << " ";
-	// cout << endl;
 
 
 	vi host_DM(nc * 32, 1);
