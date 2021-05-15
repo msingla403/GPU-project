@@ -25,7 +25,7 @@ using namespace std;
 
 #define DEBUG 1
 
-// Function to get hash of an array of integers 
+// Function to get hash of an array of integers
 __device__ __host__ int hashFn(int *data, int bsize) {
 
 	int res = bsize;
