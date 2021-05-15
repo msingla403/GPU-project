@@ -16,11 +16,11 @@ using namespace std;
 #define t third
 
 #define PANEL_SIZE 21
-#define DENSE_THRESHOLD 5
+#define DENSE_THRESHOLD 6
 
-#define SIGLEN 10
+#define SIGLEN 20
 #define BAND_SIZE 10
-#define NUM_BUCKETS 16
+#define NUM_BUCKETS 100
 
 #define DEBUG 0
 
@@ -162,6 +162,14 @@ set<pairi > LSH(vi &rowptr,
 			}
 		}
 	}
+
+	int nr = rowptr.size()-1;
+	for(int i=0; i<nr; i++)
+	{
+		for(int j=i+1; j<nr; j++)
+			result.insert({i, j});
+	}
+
 	return result;
 }
 
@@ -177,7 +185,7 @@ class trio {
 
 	trio() {}
 
-	trio(int a, int b, int c) {
+	trio(float a, int b, int c) {
 		first = a;
 		second = b;
 		third = c;
@@ -216,13 +224,14 @@ float J(vi &rowptr, vi &colidx, int i, int j) {
 
 	for (int k = rowptr[j]; k < rowptr[j + 1]; ++k) {
 		if (s.find(colidx[k]) != s.end()) {
-			ans++;
+			ans+=1.0;
 		} else {
 			count++;
 		}
 	}
 
-	// cout <<"J " <<  ans/count << endl;
+	// cout <<"J " <<i << " "<< j << " " << ans << " " << count << endl;
+	if(count == 0)	return 0;
 	return ans / count;
 }
 
@@ -234,7 +243,6 @@ class mkDSU {
 
 	mkDSU(int n, int threshold) {
 		id.resize(n);
-		// cout << "DSU " << n << endl;
 		size.resize(n);
 		deleted.resize(n);
 
@@ -268,11 +276,18 @@ class mkDSU {
 		for (auto it:candidate_pairs)
 			sim_queue.insert(trio(J(rowptr, colidx, it.f, it.s), it.f, it.s));
 
+		// for(auto it:sim_queue)
+		// {
+		// 	it.print();
+		// }
 		while (sim_queue.size() && nclusters > 0) {
 			auto it = sim_queue.begin();
 			trio temp = *it;
 			sim_queue.erase(it);
 
+			if(temp.f <= 0)
+				break;
+			
 			int i = temp.s;
 			int j = temp.t;
 
@@ -320,7 +335,7 @@ class mkDSU {
 
 	vi order_clusters() {
 		map<int, vi > clusters;
-		cout << n << endl;
+		// cout << n << endl;
 		for (int i = 0; i < n; ++i) {
 			clusters[find(i)].push_back(i);
 		}
@@ -342,15 +357,15 @@ vi reorder_rows(vi &rowptr, vi &colidx) {
 
 	set<pairi > candidate_pairs = LSH(rowptr, colidx, SIGLEN, BAND_SIZE, NUM_BUCKETS);
 
+	cout << "Candidate pairs ";
+	cout << candidate_pairs.size() << endl;
 	if(DEBUG){
-		cout << "Candidate pairs ";
-		cout << candidate_pairs.size() << endl;
-		for (auto it:candidate_pairs) {
-			cout << it.f << " " << it.s << endl;
-		}
+		// for (auto it:candidate_pairs) {
+		// 	cout << it.f << " " << it.s << endl;
+		// }
 	}
-	mkDSU dsu(n, 5 * PANEL_SIZE);
-	cout << n << endl;
+	mkDSU dsu(n, 2 * PANEL_SIZE);
+	// cout << n << endl;
 	dsu.union_(candidate_pairs, rowptr, colidx);
 
 	vi ans = dsu.order_clusters();
@@ -362,7 +377,6 @@ vi reorder_rows(vi &rowptr, vi &colidx) {
 		 cout << it << " ";
 		}
 		cout << endl;
-		return vi(n, 0);
 	}
 
 	return ans;
@@ -613,14 +627,15 @@ void run_MM(vi &row_ptr,
 	cudaFree(dcol_idx);
 	cudaFree(dcol_val);
 	cudaFree(O);
-
-	// for(int i=0; i<nr; i++)
-	// {
-	//  for(int j=0; j<32; j++)
-	//      cout << host_O[32*i + j] << " ";
-	//  cout << endl;
-	// }
-	// cout << endl;
+	if(DEBUG){
+		for(int i=0; i<nr; i++)
+		{
+		for(int j=0; j<32; j++)
+			cout << host_O[32*i + j] << " ";
+		cout << endl;
+		}
+		cout << endl;
+	}
 }
 
 void run_SPMM(vi &tile_row_ptr,
@@ -676,13 +691,15 @@ void run_SPMM(vi &tile_row_ptr,
 	cudaFree(dcol_idx);
 	cudaFree(dcol_val);
 	cudaFree(O);
-	// for(int i=0; i<nr; i++)
-	// {
-	//  for(int j=0; j<32; j++)
-	//      cout << host_O[32*i + j] << " ";
-	//  cout << endl;
-	// }
-	// cout << endl;
+	if(DEBUG){
+		for(int i=0; i<nr; i++)
+		{
+		for(int j=0; j<32; j++)
+			cout << host_O[32*i + j] << " ";
+		cout << endl;
+		}
+		cout << endl;
+	}
 }
 
 void run_ASPT(vi &tile_row_ptr,
@@ -767,11 +784,13 @@ void run_ASPT(vi &tile_row_ptr,
 	cudaFree(dcol_map);
 	cudaFree(O1);
 	cudaFree(O2);
-	// for (int i = 0; i < nr; i++) {
-	//  for (int j = 0; j < 32; j++)
-	//      cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
-	//  cout << endl;
-	// }
+	if(DEBUG){
+		for (int i = 0; i < nr; i++) {
+			for (int j = 0; j < 32; j++)
+				cout << host_O1[32 * i + j] + host_O2[32 * i + j] << " ";
+			cout << endl;
+		}
+	}
 }
 
 void CSR_reorder_GPU(vi &rows,
@@ -886,6 +905,14 @@ int main(int argc, char **argv) {
 
 	vi order_rows = reorder_rows(temp_row_ptr,temp_col_idx);
 
+	if(DEBUG)
+	{
+		cout << "Order rows" << endl;
+		for(int i=0; i<nr; i++)
+		cout << order_rows[i] << " ";
+		cout << endl;
+	}
+
 	for(int i=0;i<ne;++i){
 		reordered_rows[i] = order_rows[reordered_rows[i]-1] + 1;
 	}
@@ -924,11 +951,14 @@ int main(int argc, char **argv) {
 	int ndensecols = 0;
 	for (int i = 0; i < num_panels; i++) {
 		ndensecols += dense[i].size();
-		// for(int j=0; j<dense[i].size(); j++)
-		// {
-		//  cout << dense[i][j] << " ";
-		// }
-		// cout << endl;
+		if(DEBUG){
+			// cout << "Dense colums: "
+			for(int j=0; j<dense[i].size(); j++)
+			{
+				cout << dense[i][j] << " ";
+			}
+			cout << endl;
+		}
 	}
 	cout << "dense cols # " << ndensecols << endl;
 	thrust::sort_by_key(rows.begin(), rows.begin() + ne, cols.begin());
@@ -948,7 +978,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < nr; i++)
 		row_ptr[i + 1] += row_ptr[i];
 
-	cout << "Reordering columns for ASPT" << endl;
+	cout << "Reordering tiles for ASPT" << endl;
 
 	vi panel_ptr(num_panels + 1, 0);
 	vi tile_row_ptr(1, 0);
@@ -1026,38 +1056,40 @@ int main(int argc, char **argv) {
 	for (int i = 1; i < tile_row_ptr.size(); i++)
 		tile_row_ptr[i] += tile_row_ptr[i - 1];
 
-	// cout << "row_ptr" << endl;
-	// for(int i=0; i<=nr; i++)
-	//  cout << row_ptr[i] << " ";
-	// cout <<endl;
+	if(DEBUG)
+	{
+		cout << "row_ptr" << endl;
+		for(int i=0; i<=nr; i++)
+		 	cout << row_ptr[i] << " ";
+		cout <<endl;
 
-	// cout << "col_idx" << endl;
-	// for(int i=0; i<ne; i++)
-	//  cout << col_idx[i] << " ";
-	// cout << endl;
+		cout << "col_idx" << endl;
+		for(int i=0; i<ne; i++)
+		 	cout << col_idx[i] << " ";
+		cout << endl;
 
-	// cout << "panel_ptr" << endl;
-	// for(int i=0; i<= num_panels; i++)
-	//  cout << panel_ptr[i] << " ";
-	// cout << endl;
-	// cout << "tile_row_ptr" << endl;
-	// for(int i=0; i<tile_row_ptr.size(); i++)
-	//  cout << tile_row_ptr[i] << " ";
-	// cout << endl;
-	// cout << endl;
+		cout << "panel_ptr" << endl;
+		for(int i=0; i<= num_panels; i++)
+		 	cout << panel_ptr[i] << " ";
+		cout << endl;
 
-	// cout << "dense col mapping" << endl;
-	// for(int i=0; i<col_map.size(); i++)
-	//  cout << col_map[i] << " ";
-	// cout << endl;
+		cout << "tile_row_ptr" << endl;
+		for(int i=0; i<tile_row_ptr.size(); i++)
+		 	cout << tile_row_ptr[i] << " ";
+		cout << endl;
+		cout << endl;
 
+		cout << "dense col mapping" << endl;
+		for(int i=0; i<col_map.size(); i++)
+		 cout << col_map[i] << " ";
+		cout << endl;
+	}
 
 	vi host_DM(nc * 32, 1);
 
 	int *DM;
 	cudaMalloc(&DM, nc * 32 * sizeof(int));
 	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
-	cout << " multiplying" << endl;
 
 	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);
 	run_SPMM(tile_row_ptr, panel_ptr, col_idx, col_val, host_DM, nr, nc, ne);
@@ -1112,7 +1144,14 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < nr; i++)
 		reordered_row_ptr[i + 1] += reordered_row_ptr[i];
 
-	cout << "Reordering columns for ASPT" << endl;
+	if(DEBUG)
+	{
+		cout << "element rows" << endl;
+		for(int i=0; i<ne; i++)
+			cout << reordered_rows[i] << " ";
+		cout << endl;
+	}
+	cout << "Reordering tiles for ASPT" << endl;
 
 	vi reordered_panel_ptr(num_panels + 1, 0);
 	vi reordered_tile_row_ptr(1, 0);
@@ -1190,6 +1229,34 @@ int main(int argc, char **argv) {
 	for (int i = 1; i < reordered_tile_row_ptr.size(); i++)
 		reordered_tile_row_ptr[i] += reordered_tile_row_ptr[i - 1];
 
+	if(DEBUG)
+	{
+		cout << "row_ptr" << endl;
+		for(int i=0; i<=nr; i++)
+		 	cout << reordered_row_ptr[i] << " ";
+		cout <<endl;
+
+		cout << "col_idx" << endl;
+		for(int i=0; i<ne; i++)
+		 	cout << reordered_col_idx[i] << " ";
+		cout << endl;
+
+		cout << "panel_ptr" << endl;
+		for(int i=0; i<= num_panels; i++)
+		 	cout << reordered_panel_ptr[i] << " ";
+		cout << endl;
+
+		cout << "tile_row_ptr" << endl;
+		for(int i=0; i<reordered_tile_row_ptr.size(); i++)
+		 	cout << reordered_tile_row_ptr[i] << " ";
+		cout << endl;
+		cout << endl;
+
+		cout << "dense col mapping" << endl;
+		for(int i=0; i<reordered_col_map.size(); i++)
+		 cout << reordered_col_map[i] << " ";
+		cout << endl;
+	}
 	cout << " multiplying" << endl;
 
 	// run_MM(row_ptr, col_idx, col_val, host_DM, nr, nc, ne);

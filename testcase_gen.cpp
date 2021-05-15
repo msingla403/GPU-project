@@ -6,9 +6,9 @@ using namespace std;
 int main()
 {
     srand(time(NULL));
-    long int nr = 100;
-    long int nc = 100;
-    float sparsity = 0.1;
+    long int nr = 1000;
+    long int nc = 1000;
+    float sparsity = 0.05;
 
     double ne = 1.0*sparsity*nr*nc;
     // cout << ne << endl;
