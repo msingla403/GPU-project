@@ -15,15 +15,16 @@ using namespace std;
 #define s second
 #define t third
 
-#define PANEL_SIZE 21
+#define PANEL_SIZE 32
 #define DENSE_THRESHOLD 6
 
 #define SIGLEN 20
 #define BAND_SIZE 10
-#define NUM_BUCKETS 100
+#define NUM_BUCKETS 256
 
 #define DEBUG 0
 
+// Function to get hash of an array of integers
 __device__ __host__ int hashFn(int *data, int bsize) {
 
 	int res = bsize;
@@ -33,6 +34,7 @@ __device__ __host__ int hashFn(int *data, int bsize) {
 	return abs(res);
 }
 
+// Use Minahshing to generate a small signature of rows of matrix
 __global__ void getSig(int *rowptr,
 							  int *colidx,
 							  int *perms,
@@ -65,6 +67,8 @@ __global__ void getSig(int *rowptr,
 	}
 }
 
+// Use bands to allocate rows into buckets for hashing. 
+// If any band of any two rows hash to the same bucket, they are considered as a candidate pair
 __global__ void getBuckets(int *sigs,
 									int *res,
 									int n,
@@ -84,7 +88,7 @@ __global__ void getBuckets(int *sigs,
 }
 
 /* 
-siglen % bsize ==0 ;  siglen anything.. 
+siglen % bsize ==0 ;  siglen anything -> (hyper parameter)
 Local Sensitive Hashing
 Given the vectors, the LSH will divide them into buckets suck that similar vectors come in same bucket.
  */
@@ -163,12 +167,12 @@ set<pairi > LSH(vi &rowptr,
 		}
 	}
 
-	int nr = rowptr.size()-1;
-	for(int i=0; i<nr; i++)
-	{
-		for(int j=i+1; j<nr; j++)
-			result.insert({i, j});
-	}
+	// int nr = rowptr.size()-1;
+	// for(int i=0; i<nr; i++)
+	// {
+	// 	for(int j=i+1; j<nr; j++)
+	// 		result.insert({i, j});
+	// }
 
 	return result;
 }
@@ -235,6 +239,7 @@ float J(vi &rowptr, vi &colidx, int i, int j) {
 	return ans / count;
 }
 
+// Find out rows which will benefit from reordering using candidate pairs and disjoint set union Data Structure.
 class mkDSU {
  public:
 	vector<int> id, size, deleted;
@@ -382,33 +387,7 @@ vi reorder_rows(vi &rowptr, vi &colidx) {
 	return ans;
 }
 
-// Matrix Multiplication on CPU
-__global__ void MM(int *row_ptr,
-						 int *col_idx,
-						 int *col_val,
-						 int *dm,
-						 int *O,
-						 int N,
-						 int M,
-						 int K) {
-
-	int idx = threadIdx.x + blockDim.x * blockIdx.x;
-
-	if (idx < N * K) {
-		// i'th row, j'th column of output
-		int i = idx / K;
-		int j = idx % K;
-		int res = 0;
-		int temp;
-		for (int k = row_ptr[i]; k < row_ptr[i + 1]; ++k) {
-			temp = dm[col_idx[k] * K + j];
-			res += col_val[k] * temp;
-		}
-		O[i * K + j] = res;
-	}
-}
-
-// Normal Matrix Multiplication on CPU
+// Normal Matrix Multiplication on GPU usign tiles
 
 __global__ void SPMM(int *tile_row_ptr,
 							int *panel_ptr,
@@ -438,7 +417,7 @@ __global__ void SPMM(int *tile_row_ptr,
 	}
 }
 
-
+// Find out the dense tiles in GPU (memory usage is high)
 __global__ void find_dense_GPU(int *col_ptr,
 										 int *row_idx,
 										 int *isdense,
@@ -465,6 +444,7 @@ __global__ void find_dense_GPU(int *col_ptr,
 	}
 }
 
+// returns the indexed of dense tiles in each panel
 ve<vi > find_dense_CPU(vi &col_ptr, vi &row_idx, int nr, int nc) {
 	int num_panels = nr / PANEL_SIZE;
 	ve<vi > result(num_panels, vi());
