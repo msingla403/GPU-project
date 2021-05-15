@@ -15,14 +15,15 @@ using namespace std;
 #define s second
 #define t third
 
-#define PANEL_SIZE 32
-#define DENSE_THRESHOLD 6
+// HYPERPARAMETERS
+#define PANEL_SIZE 3
+#define DENSE_THRESHOLD 2
 
 #define SIGLEN 20
 #define BAND_SIZE 10
-#define NUM_BUCKETS 256
+#define NUM_BUCKETS 2
 
-#define DEBUG 0
+#define DEBUG 1
 
 // Function to get hash of an array of integers
 __device__ __host__ int hashFn(int *data, int bsize) {
@@ -562,61 +563,6 @@ __global__ void ASPT_sparse(int *tile_row_ptr,
 
 }
 
-void run_MM(vi &row_ptr,
-				vi &col_idx,
-				vi &col_val,
-				vi &host_DM,
-				int nr,
-				int nc,
-				int ne) {
-	// try a simple MM, (NxM)*(MxK) -> (NxK), use N*K threads
-
-	int *drow_ptr;
-	int *dcol_idx;
-	int *dcol_val;
-	cudaMalloc(&drow_ptr, (nr + 1) * sizeof(int));
-	cudaMalloc(&dcol_idx, ne * sizeof(int));
-	cudaMalloc(&dcol_val, ne * sizeof(int));
-
-	cudaMemcpy(drow_ptr, &row_ptr[0], (nr + 1) * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dcol_idx, &col_idx[0], ne * sizeof(int), cudaMemcpyHostToDevice);
-	cudaMemcpy(dcol_val, &col_val[0], ne * sizeof(int), cudaMemcpyHostToDevice);
-
-	int *DM;
-	cudaMalloc(&DM, nc * 32 * sizeof(int));
-	cudaMemcpy(DM, &host_DM[0], nc * 32 * sizeof(int), cudaMemcpyHostToDevice);
-
-	int *O;
-	cudaMalloc(&O, nr * 32 * sizeof(int));
-
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	float miliseconds = 0;
-	cudaEventRecord(start, 0);
-	MM <<< (nr * 32 + 1023) / 1024, 1024>>>(drow_ptr, dcol_idx, dcol_val, DM, O, nr, nc, 32);
-	cudaDeviceSynchronize();
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&miliseconds, start, stop);
-	cout << "MM time " << miliseconds << endl;
-	vi host_O(nr * 32);
-	cudaMemcpy(&host_O[0], O, nr * 32 * sizeof(int), cudaMemcpyDeviceToHost);
-	
-	cudaFree(drow_ptr);
-	cudaFree(dcol_idx);
-	cudaFree(dcol_val);
-	cudaFree(O);
-	if(DEBUG){
-		for(int i=0; i<nr; i++)
-		{
-		for(int j=0; j<32; j++)
-			cout << host_O[32*i + j] << " ";
-		cout << endl;
-		}
-		cout << endl;
-	}
-}
 
 void run_SPMM(vi &tile_row_ptr,
 				  vi &panel_ptr,
